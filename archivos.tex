@@ -1,0 +1,1171 @@
+La estructura de archivos del proyecto es sencilla y está organizada para facilitar el desarrollo y mantenimiento del código.
+En la raíz del proyecto se encuentra el directorio `src/`, que contiene todo el código fuente.
+Dentro de `src/`, hay un subdirectorio `main/` que alberga el código Java.
+
+\vspace{0cm}
+\begin{figure}[H]
+    \centering
+    \caption{Estructura de carpetas del proyecto}
+    \vspace{-0.2cm}
+    \fbox{
+    \begin{minipage}{0.8\textwidth}
+        \vspace{0.5cm}
+        \dirtree{%
+        .1 / (Raíz del proyecto).
+        .2 src/.
+        .3 main/.
+        .4 java/.
+        .5 Alumno.java \DTcomment{Clase Alumno}.
+        .5 ClaseHorario.java \DTcomment{Clase Horario}.
+        .5 Generador.java \DTcomment{Junta la lógica principal}.
+        .5 HorarioUtils.java \DTcomment{funciones para manipular los horarios}.
+        .5 Intervalo.java \DTcomment{Clase Intervalo}.
+        .5 Main.java \DTcomment{Clase principal}.
+        .5 PDFHorarioStripper.java \DTcomment{funciones para leer PDFs}.
+        .5 SelectorDestino.java \DTcomment{Clase del selector de archivos}.
+        .4 resources/pdf/ \DTcomment{Directorio para archivos PDF}.
+        .5 *.pdf \DTcomment{Recursos PDF}.
+        .2 target/ \DTcomment{Archivos compilados}.
+        }
+        \vspace{0.5cm}
+    \end{minipage}
+    }
+    \label{fig:EstructuraCodigo}
+\end{figure}
+
+\subsubsection{Clase Alumno}
+La clase `Alumno` funciona para almacenar datos y representa a un estudiante.
+Contiene dos atributos: el nombre completo y el horario. Así como sus respectivos métodos para acceder a esta información.
+Esta clase es fundamental para almacenar la información de cada alumno y sus preferencias de horario.
+El código es:
+
+\vspace{-0.2cm}
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.7\textwidth}
+    \caption{Clase Alumno}
+    \label{code:Alumno}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+public class Alumno {
+    private final String nombreCompleto;
+    private final Map<DayOfWeek, List<ClaseHorario>> horario;
+
+    public Alumno(String nombreCompleto,
+                  Map<DayOfWeek, List<ClaseHorario>> horario) {
+        this.nombreCompleto = nombreCompleto;
+        this.horario = horario;
+    }
+
+    public String getNombreCompleto() {
+        return nombreCompleto;
+    }
+
+    public Map<DayOfWeek, List<ClaseHorario>> getHorario() {
+        return horario;
+    }
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+Especificaciones:
+\begin{itemize}
+    \item Contiene el nombre completo del alumno.
+    \item Contiene el horario. Está declarado como un Map donde la clave es la clase \texttt{DayOfWeek} que es el día de la semana
+    y tiene el valor \texttt{List<ClaseHorario>} que almacena el horario para cada día de la semana. Por ejemplo:
+    \begin{center}
+        Monday $\rightarrow$ [Matemáticas 8:00, Física 10:00]
+    \end{center}
+\end{itemize}
+
+\subsubsection{Clase Horario}
+La clase `ClaseHorario` representa una materia específica dentro del horario de un alumno.
+Contiene atributos para almacenar el código de la materia, el nombre, el día de la semana y
+el intervalo de tiempo en el que se imparte la clase. Esta clase es esencial para organizar
+y gestionar los horarios de los alumnos, permitiendo una fácil manipulación de la información
+relacionada con las materias que cada alumno cursa.
+
+\vspace{-0.2cm}
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.7\textwidth}
+    \caption{Clase Horario}
+    \label{code:Horario}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+public class ClaseHorario {
+    private final String codigo;
+    private String nombre;
+    private final DayOfWeek dia;
+    private final Intervalo intervalo;
+
+    public ClaseHorario(String codigo, String nombre, DayOfWeek dia, Intervalo intervalo) {
+        this.codigo = codigo;
+        this.nombre = nombre;
+        this.dia = dia;
+        this.intervalo = intervalo;
+    }
+
+    public String getCodigo() {
+        return codigo;
+    }
+    public String getNombreMateria() {
+        return nombre;
+    }
+    public void setNombreMateria(String nombre) {
+        this.nombre = nombre;
+    }
+    public DayOfWeek getDia() {
+        return dia;
+    }
+    public Intervalo getIntervalo() {
+        return intervalo;
+    }
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+Especificaciones:
+\begin{itemize}
+    \item Código: es la clave única de la materia. Por ejemplo: MAT101
+    \item Nombre: nombre de la materia
+    \item DayOfWeek: guarda el día de la materia. Por ejemplo: DayOfWeek.MONDAY3
+    \item Intervalo: es una clase que almacena el intervalo donde la materia es tomada. Por ejemplo: 9:00-11:00
+\end{itemize}
+
+\subsubsection{Generador}
+La clase `Generador` es el núcleo del sistema, encargada de coordinar la lectura de los archivos PDF,
+procesar la información de los alumnos y generar el archivo de salida con los horarios.
+Esta clase implementa la lógica principal del programa, incluyendo la gestión de hilos para permitir la
+interrupción del proceso por parte del usuario, así como la organización y escritura de los horarios en un formato legible.
+Además, maneja las excepciones que puedan surgir durante la lectura de los archivos PDF, asegurando que el programa se ejecute de manera robusta y eficiente.
+
+\vspace{-0.2cm}
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Código de la Función Principal de Generador}
+    \label{code:Generador}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+public class Generador {
+    private static final Path CARPETA_PDF =
+            Paths.get("src/main/resources/pdf/");
+    private static final Path ARCHIVO_SALIDA =
+            Paths.get("horarios.txt");
+    public void ejecutar() throws Exception {
+        System.out.println("El programa iniciara en 3 segundos.");
+        System.out.println("Presiona [ENTER] en cualquier momento para cancelar...");
+
+        // Hilo para vigilar el teclado y permitir la interrupcion del programa
+        Thread hiloInterrupcion = new Thread(() -> {
+            try {
+                if (System.in.read() != -1) { 
+                    System.out.println("\n[!] Ejecucion cancelada por el usuario.");
+                    System.exit(0);
+                }
+            } catch (Exception e) {
+            }
+        });
+        // Al ser Daemon, este hilo morira automaticamente cuando el programa termine
+        hiloInterrupcion.setDaemon(true); 
+        hiloInterrupcion.start();
+
+        // El hilo principal hace la cuenta regresiva
+        for (int i = 3; i > 0; i--) {
+            System.out.print(i + "... ");
+            Thread.sleep(1000);
+        }
+        System.out.println("\nIniciando procesamiento\n");
+
+        Path rutaSalida = SelectorDestino.pedirRutaAlUsuario("horarios.txt");
+
+        if (rutaSalida == null) {
+        System.out.println("Proceso cancelado por el usuario.");
+        return;
+        }
+
+        List<Alumno> alumnos;
+        try {
+            alumnos = cargarAlumnosDesdePDF();
+        } catch (RuntimeException e) {
+            System.err.println("[!] Proceso terminado.");
+            return;
+        }
+
+        /* Se reemplazo ARCHIVO_SALIDA por rutaSalida */
+        try (BufferedWriter writer = Files.newBufferedWriter(
+                rutaSalida,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING
+        )) {
+            escribirHorariosAlumnos(alumnos, writer);
+            writer.newLine();
+            escribirHorariosLibres(alumnos, writer);
+        }
+    }
+    ...
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+La función \texttt{ejecutar()} (figura \ref{code:Generador}) es el punto de entrada del programa, donde se inicia la cuenta regresiva,
+se configura el hilo de interrupción para permitir al usuario cancelar la ejecución, y se coordina la carga de los alumnos desde
+los archivos PDF y la escritura de los horarios en el archivo de salida.
+Esta función maneja las excepciones que puedan surgir durante el proceso,
+asegurando que el programa se ejecute de manera robusta y eficiente.
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Código de la Función Cargar Alumnos de Generador}
+    \label{code:Generador-CargarAlumnos}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+public class Generador {
+    ...
+    // =======================
+    // Cargar alumnos
+    // =======================
+   private List<Alumno> cargarAlumnosDesdePDF() throws Exception {
+        if (!Files.exists(CARPETA_PDF)) {
+            throw new RuntimeException("No existe la carpeta de PDFs");
+        }
+
+        List<Alumno> alumnos = new ArrayList<>();
+
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(CARPETA_PDF, "*.pdf")) {
+            for (Path pdf : stream) {
+                System.out.println("Procesando: " + pdf.getFileName());
+
+                try {
+                    try (PDDocument doc = PDDocument.load(pdf.toFile())) {
+                        PDFHorarioStripper stripper = new PDFHorarioStripper();
+                        stripper.getText(doc);
+                        alumnos.add(new Alumno(stripper.getNombreAlumno(), stripper.getHorario()));
+                    }
+                } catch (IOException e) {
+                    System.err.println("\n[!] Error fatal:");
+                    System.err.println("[!] PDF no valido: " + pdf.getFileName());
+                    System.err.println("[!] Detalle: " + e.getMessage());
+                    System.err.println("[!] Se cancela toda la ejecucion.\n");
+                    throw new RuntimeException(
+                            "Proceso cancelado por archivo PDF no valido: " + pdf.getFileName(),
+                            e
+                    );
+                }
+            }
+        }
+        return alumnos;
+    }
+    ...
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+La función \texttt{cargarAlumnosDesdePDF()} (figura \ref{code:Generador-CargarAlumnos}) genera
+una lista de la clase \texttt{Alumno} que es responsable de leer los archivos PDF desde el directorio especificado,
+envía cada archivo a la clase \texttt{PDFHorarioStripper} para extraer la información del alumno y su horario, y maneja las excepciones que puedan surgir durante este proceso.
+Si se encuentra un archivo PDF no válido, se imprime un mensaje de error detallado y se cancela toda la ejecución del programa,
+asegurando que el usuario esté informado sobre la causa del error.
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Código de la Función Escribir Horarios de Generador}
+    \label{code:Generador-EscribirHorarios}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+public class Generador {
+    ...
+    // =======================
+    // Escribir alumnos
+    // =======================
+    private void escribirHorariosAlumnos(
+            List<Alumno> alumnos,
+            BufferedWriter writer
+    ) throws Exception {
+
+        for (Alumno a : alumnos) {
+            escribirAlumno(a, writer);
+            writer.newLine();
+        }
+    }
+    private void escribirAlumno(Alumno a, BufferedWriter writer)
+            throws Exception {
+
+        writer.write("[" + a.getNombreCompleto() + "]");
+        writer.newLine();
+
+        for (DayOfWeek dia : diasSemana()) {
+
+            writer.write("  " + diaEnEspanol(dia) + ":");
+            writer.newLine();
+
+            var clases = a.getHorario().get(dia);
+
+            if (clases == null || clases.isEmpty()) {
+                writer.write("    N/H");
+                writer.newLine();
+                continue;
+            }
+
+            clases.sort(Comparator.comparing(
+                    c -> c.getIntervalo().inicio
+            ));
+
+            for (ClaseHorario c : clases) {
+                writer.write("    " +
+                        c.getIntervalo().inicio + "-" +
+                        c.getIntervalo().fin + "  " +
+                        c.getNombreMateria()
+                );
+                writer.newLine();
+            }
+        }
+    }
+    ...
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+La función \texttt{escribirHorariosAlumnos()} (figura \ref{code:Generador-EscribirHorarios}) es
+responsable de escribir los horarios de cada alumno \textbf{en el archivo de salida}. Esta función itera sobre la lista de alumnos,
+llamando a la función \texttt{escribirAlumno()} para cada uno, que se encarga de formatear y
+escribir el nombre del alumno y su horario diario en un formato legible.
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Código de la Función Escribir Horarios Libres de Generador}
+    \label{code:Generador-EscribirHorariosLibres}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+public class Generador {
+    ...
+    // =======================
+    // Horarios libres
+    // =======================
+    private void escribirHorariosLibres(
+            List<Alumno> alumnos,
+            BufferedWriter writer
+    ) throws Exception {
+
+        writer.write("HORARIOS LIBRES COMUNES");
+        writer.newLine();
+
+        Map<DayOfWeek, List<Intervalo>> libres =
+                HorarioUtils.horariosLibres(alumnos);
+
+        for (DayOfWeek dia : diasSemana()) {
+
+            writer.write("  " + diaEnEspanol(dia) + ":");
+            writer.newLine();
+
+            List<Intervalo> intervalos = libres.get(dia);
+
+            if (intervalos == null || intervalos.isEmpty()) {
+                writer.write("    N/H");
+                writer.newLine();
+                continue;
+            }
+
+            for (Intervalo i : intervalos) {
+                writer.write("    " + i);
+                writer.newLine();
+            }
+        }
+    }
+    ...
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+La función \texttt{escribirHorariosLibres()} (figura \ref{code:Generador-EscribirHorariosLibres}) es responsable de escribir
+los horarios libres comunes a todos los alumnos en el archivo de salida. Esta función utiliza la clase \texttt{HorarioUtils}
+para calcular los intervalos de tiempo en los que ningún alumno tiene clases programadas, y luego formatea y
+escribe esta información en el archivo de salida de manera legible para el usuario.
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Código de la Función Utilidades de Generador}
+    \label{code:Generador-Utilidades}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+public class Generador {
+    ...
+    // =======================
+    // Utilidades
+    // =======================
+    private List<DayOfWeek> diasSemana() {
+        return List.of(
+                DayOfWeek.MONDAY,
+                DayOfWeek.TUESDAY,
+                DayOfWeek.WEDNESDAY,
+                DayOfWeek.THURSDAY,
+                DayOfWeek.FRIDAY
+        );
+    }
+    private String diaEnEspanol(DayOfWeek d) {
+        return switch (d) {
+            case MONDAY -> "Lunes";
+            case TUESDAY -> "Martes";
+            case WEDNESDAY -> "Miercoles";
+            case THURSDAY -> "Jueves";
+            case FRIDAY -> "Viernes";
+            default -> "";
+        };
+    }
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+Finalmente, la clase \texttt{Generador} también incluye funciones de utilidad para facilitar la manipulación de los datos.
+
+\subsubsection{HorarioUtils}
+La clase \texttt{HorarioUtils} es una colección de funciones estáticas que proporcionan utilidades para manipular y procesar los horarios de los alumnos.
+Estas funciones incluyen el parseo de horarios desde texto, la unión de intervalos de tiempo, la identificación de horarios libres comunes entre los alumnos
+y otras operaciones relacionadas con la gestión de los horarios.
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Código de la Función Parseo de Horarios de HorarioUtils}
+    \label{code:HorarioUtils-Parseo}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+public class HorarioUtils {
+    private HorarioUtils() {}
+    // =======================
+    // Parseo de horarios PDF
+    // =======================
+    public static Intervalo parseHorario(String texto) {
+
+        String[] partes = texto.split("-");
+
+        int hIni = Integer.parseInt(partes[0].substring(0, 2));
+        int mIni = Integer.parseInt(partes[0].substring(2, 4));
+
+        int hFin = Integer.parseInt(partes[1].substring(0, 2));
+        int mFin = Integer.parseInt(partes[1].substring(2, 4));
+
+        LocalTime inicio = LocalTime.of(hIni, mIni);
+
+        LocalTime fin = (mFin == 59)
+                ? LocalTime.of(hFin, 0).plusHours(1)
+                : LocalTime.of(hFin, mFin);
+
+        return new Intervalo(inicio, fin);
+    }
+    ...
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Código de la Función Unión de Intervalos de HorarioUtils}
+    \label{code:HorarioUtils-UnirIntervalos}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+public class HorarioUtils {
+    ...
+    // =======================
+    // Unión de intervalos
+    // =======================
+    public static List<Intervalo>
+    unirIntervalos(List<Intervalo> intervalos) {
+
+        if (intervalos == null || intervalos.isEmpty())
+            return List.of();
+
+        intervalos.sort(
+                Comparator.comparing(i -> i.inicio)
+        );
+
+        List<Intervalo> resultado = new ArrayList<>();
+        Intervalo actual = intervalos.get(0);
+
+        for (int i = 1; i < intervalos.size(); i++) {
+            Intervalo sig = intervalos.get(i);
+
+            if (!sig.inicio.isAfter(actual.fin)) {
+                actual = new Intervalo(
+                        actual.inicio,
+                        actual.fin.isAfter(sig.fin)
+                                ? actual.fin
+                                : sig.fin
+                );
+            } else {
+                resultado.add(actual);
+                actual = sig;
+            }
+        }
+
+        resultado.add(actual);
+        return resultado;
+    }
+    ...
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Código de la Función Unión de Horarios de HorarioUtils}
+    \label{code:HorarioUtils-UnirHorarios}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+public class HorarioUtils {
+    ...
+    // =======================
+    // Unión de horarios (alumnos)
+    // =======================
+    public static Map<DayOfWeek, List<Intervalo>>
+    unirHorariosOcupados(List<Alumno> alumnos) {
+
+        Map<DayOfWeek, List<Intervalo>> ocupados =
+                new EnumMap<>(DayOfWeek.class);
+
+        for (DayOfWeek d : DayOfWeek.values()) {
+            ocupados.put(d, new ArrayList<>());
+        }
+
+        for (Alumno a : alumnos) {
+            for (var entry : a.getHorario().entrySet()) {
+                for (ClaseHorario c : entry.getValue()) {
+                    ocupados.get(entry.getKey())
+                            .add(c.getIntervalo());
+                }
+            }
+        }
+
+        Map<DayOfWeek, List<Intervalo>> resultado =
+                new EnumMap<>(DayOfWeek.class);
+
+        for (DayOfWeek dia : List.of(
+                DayOfWeek.MONDAY,
+                DayOfWeek.TUESDAY,
+                DayOfWeek.WEDNESDAY,
+                DayOfWeek.THURSDAY,
+                DayOfWeek.FRIDAY
+        )) {
+            resultado.put(
+                    dia,
+                    unirIntervalos(ocupados.get(dia))
+            );
+        }
+
+        return resultado;
+    }
+    ...
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Código de la Función Complemento de Intervalos de HorarioUtils}
+    \label{code:HorarioUtils-ComplementoIntervalos}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+public class HorarioUtils {
+    ...
+    // =======================
+    // Complemento de intervalos
+    // =======================
+    public static List<Intervalo>
+    complemento(List<Intervalo> ocupados,
+                LocalTime inicio,
+                LocalTime fin) {
+
+        List<Intervalo> libres = new ArrayList<>();
+        LocalTime cursor = inicio;
+
+        for (Intervalo o : ocupados) {
+
+            if (cursor.isBefore(o.inicio)) {
+                libres.add(new Intervalo(cursor, o.inicio));
+            }
+
+            if (o.fin.isAfter(cursor)) {
+                cursor = o.fin;
+            }
+        }
+
+        if (cursor.isBefore(fin)) {
+            libres.add(new Intervalo(cursor, fin));
+        }
+
+        return libres;
+    }
+    ...
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Código de la Función Horarios Libres de HorarioUtils}
+    \label{code:HorarioUtils-HorariosLibresComunes}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+public class HorarioUtils {
+    ...
+    // =======================
+    // Horarios libres comunes
+    // =======================
+    public static Map<DayOfWeek, List<Intervalo>>
+    horariosLibres(List<Alumno> alumnos) {
+
+        Map<DayOfWeek, List<Intervalo>> ocupados =
+                unirHorariosOcupados(alumnos);
+
+        Map<DayOfWeek, List<Intervalo>> libres =
+                new EnumMap<>(DayOfWeek.class);
+
+        LocalTime INICIO = LocalTime.of(11, 0);
+        LocalTime FIN = LocalTime.of(19, 0);
+
+        for (DayOfWeek dia : ocupados.keySet()) {
+
+            List<Intervalo> libresDia =
+                    complemento(
+                            ocupados.get(dia),
+                            INICIO,
+                            FIN
+                    );
+
+            libres.put(dia, libresDia);
+        }
+
+        return libres;
+    }
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+\subsubsection{Clase Intervalo}
+La clase \texttt{Intervalo} es una clase simple que representa un intervalo de tiempo con una hora de inicio y una hora de fin.
+Esta clase es utilizada para almacenar los intervalos de tiempo en los que se imparten las clases, así como para calcular los horarios libres comunes entre los alumnos.
+Contiene dos atributos: \texttt{inicio} y \texttt{fin}, ambos de tipo \texttt{LocalTime} y un método \texttt{toString()} para representar el intervalo en formato legible.
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Código de la clase Intervalo}
+    \label{code:Intervalo}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+import java.time.LocalTime;
+
+public class Intervalo {
+
+    public final LocalTime inicio;
+    public final LocalTime fin;
+
+    public Intervalo(LocalTime inicio, LocalTime fin) {
+        this.inicio = inicio;
+        this.fin = fin;
+    }
+
+    @Override
+    public String toString() {
+        return inicio + - + fin;
+    }
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+Especificaciones:
+\begin{itemize}
+    \item Contiene una hora final y una hora inicial, esto para intervalo en clase horario.
+\end{itemize}
+
+\subsubsection{Clase Main}
+La clase \texttt{Main} es la clase principal del programa, que contiene el método \texttt{main()} que es el punto de entrada de la aplicación.
+En este método se crea una instancia de la clase \texttt{Generador} y se llama a su método \texttt{ejecutar()} para iniciar el proceso de generación de los horarios.
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Código de la clase Main}
+    \label{code:Main}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+public class Main {
+    public static void main(String[] args) throws Exception {
+        new Generador().ejecutar();
+    }
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+\subsubsection{Clase PDFHorarioStripper}
+La clase \texttt{PDFHorarioStripper} es una extensión de la clase \texttt{PDFTextStripper} de la biblioteca Apache PDFBox,
+diseñada para extraer información específica de los archivos PDF que contienen los horarios de los alumnos.
+Esta clase implementa la lógica para identificar y extraer el nombre del alumno, los códigos de las materias, los nombres de las materias,
+los días de la semana y los horarios de cada clase.
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Código de las constantes de la clase PDFHorarioStripper}
+    \label{code:PDFHorarioStripper-Constantes}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+public class PDFHorarioStripper extends PDFTextStripper {
+    // Constantes
+    // =======================
+    private static final Map<String, DayOfWeek> DIAS = Map.of(
+            "LUNES", DayOfWeek.MONDAY,
+            "MARTES", DayOfWeek.TUESDAY,
+            "MIERCOLES", DayOfWeek.WEDNESDAY,
+            "MIÉRCOLES", DayOfWeek.WEDNESDAY,
+            "JUEVES", DayOfWeek.THURSDAY,
+            "VIERNES", DayOfWeek.FRIDAY,
+            "SABADO", DayOfWeek.SATURDAY,
+            "SÁBADO", DayOfWeek.SATURDAY,
+            "DOMINGO", DayOfWeek.SUNDAY
+    );
+    private static final String REGEX_CODIGO = "[A-Z]{3,4}-\\d{3}";
+    private static final String REGEX_CODIGO_PARCIAL = "[A-Z]{3,4}-";
+    private static final String REGEX_HORARIO_COMPLETO = "\\d{4}-\\d{4}";
+    private static final String REGEX_HORARIO_INICIO = "\\d{4}-";
+    private static final String REGEX_HORARIO_FIN = "\\d{4}";
+    ...
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+En la figura \ref{code:PDFHorarioStripper-Constantes} se pueden observar las constantes utilizadas en la clase \texttt{PDFHorarioStripper},
+incluyendo un mapa para convertir los nombres de los días de la semana en español a objetos \texttt{DayOfWeek} y varias expresiones regulares
+para identificar los códigos de las materias y los horarios en el texto extraído de los archivos PDF.
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Código de estado de la clase PDFHorarioStripper}
+    \label{code:PDFHorarioStripper-Estado}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+public class PDFHorarioStripper extends PDFTextStripper {
+    ...
+    // =======================
+    // Estado
+    // =======================
+
+    private final TreeMap<Float, DayOfWeek> columnasDias = new TreeMap<>();
+    private final Map<DayOfWeek, List<ClaseHorario>> horario =
+            new EnumMap<>(DayOfWeek.class);
+
+    private String nombreAlumno;
+
+    private String codigoMateriaActual;
+    private String codigoParcial;
+
+    private StringBuilder nombreMateriaActual;
+    private boolean aceptandoNombreMateria;
+
+    private String horarioParcial;
+
+    private ClaseHorario ultimaClaseCreada;
+
+    public PDFHorarioStripper() throws IOException {
+        setSortByPosition(true);
+        for (DayOfWeek d : DayOfWeek.values()) {
+            horario.put(d, new ArrayList<>());
+        }
+    }
+
+    ...
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+En la figura \ref{code:PDFHorarioStripper-Estado} se pueden observar los atributos de estado de la clase \texttt{PDFHorarioStripper},
+que se utilizan para almacenar la información extraída de los archivos PDF, así como para mantener el estado durante el proceso de extracción.
+Estos atributos incluyen un mapa para registrar las columnas de los días de la semana, un mapa para almacenar el horario del alumno,
+variables para el nombre del alumno, el código de la materia actual, el nombre de la materia actual y otras variables auxiliares para el proceso de extracción.
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Código de la clase PDFHorarioStripper}
+    \label{code:PDFHorarioStripper}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+public class PDFHorarioStripper extends PDFTextStripper {
+    ...
+    @Override
+    protected void writeString(String text, List<TextPosition> positions) {
+        if (text == null || positions.isEmpty()) return;
+
+        String limpio = text
+                .replace('\u00A0', ' ')
+                .trim()
+                .toUpperCase();
+
+        if (limpio.isEmpty()) return;
+
+        TextPosition p = positions.get(0);
+        float x = p.getXDirAdj();
+        // =======================
+        // Nombre del alumno
+        // =======================
+        if (limpio.startsWith("NOMBRE:")) {
+            nombreAlumno = limpio.substring("NOMBRE:".length()).trim();
+            return;
+        }
+        // =======================
+        // Encabezados de días
+        // =======================
+        if (DIAS.containsKey(limpio)) {
+            registrarColumnaDia(x, DIAS.get(limpio));
+            return;
+        }
+        // =======================
+        // Código de materia completo
+        // =======================
+        if (limpio.matches(REGEX_CODIGO)) {
+            codigoMateriaActual = limpio;
+            codigoParcial = null;
+            nombreMateriaActual = new StringBuilder();
+            ultimaClaseCreada = null;
+            aceptandoNombreMateria = true;
+            return;
+        }
+        // =======================
+        // Código de materia partido
+        // =======================
+        if (limpio.matches(REGEX_CODIGO_PARCIAL)) {
+            codigoParcial = limpio;
+            return;
+        }
+        if (codigoParcial != null && limpio.matches("\\d{3}")) {
+            codigoMateriaActual = codigoParcial + limpio;
+            codigoParcial = null;
+            nombreMateriaActual = new StringBuilder();
+            ultimaClaseCreada = null;
+            aceptandoNombreMateria = true;
+            return;
+        }
+        ...
+    }
+
+    ...
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+En la figura \ref{code:PDFHorarioStripper} se puede observar el método \texttt{writeString()} de la clase \texttt{PDFHorarioStripper},
+que es el método principal encargado de procesar cada fragmento de texto extraído del archivo PDF. Este método implementa la lógica para identificar y extraer el nombre del alumno,
+los códigos de las materias, los nombres de las materias, los días de la semana y los horarios de cada clase, utilizando las constantes
+y el estado definidos en la clase para guiar el proceso de extracción.
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Código de la clase PDFHorarioStripper}
+    \label{code:PDFHorarioStripper-Horarios}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+public class PDFHorarioStripper extends PDFTextStripper {
+    @Override
+    protected void writeString(String text, List<TextPosition> positions) {
+        ...
+        // =======================
+        // Nombre de materia (solo ANTES del horario)
+        // =======================
+        if (aceptandoNombreMateria
+                && Character.isLetter(limpio.charAt(0))
+                && !DIAS.containsKey(limpio)
+                && !limpio.startsWith("TOTAL")
+                && !limpio.startsWith("NOTAS")
+                && !limpio.startsWith("VERSIÓN")
+                && !limpio.matches(REGEX_CODIGO)
+                && !limpio.matches(REGEX_CODIGO_PARCIAL)
+                && !limpio.matches(REGEX_HORARIO_COMPLETO)
+                && !limpio.matches(REGEX_HORARIO_INICIO)
+                && !limpio.matches(REGEX_HORARIO_FIN)) {
+
+            if (nombreMateriaActual.length() > 0)
+                nombreMateriaActual.append(" ");
+
+            String limpioMateria = limpiarNombreMateria(limpio);
+
+            if (!limpioMateria.isEmpty()) {
+                if (nombreMateriaActual.length() > 0)
+                    nombreMateriaActual.append(" ");
+
+                nombreMateriaActual.append(limpioMateria);
+            }
+
+            return;
+        }
+        // =======================
+        // Horario completo
+        // =======================
+        if (limpio.matches(REGEX_HORARIO_COMPLETO)) {
+            procesarHorario(limpio, x);
+            return;
+        }
+        // =======================
+        // Horario partido (inicio)
+        // =======================
+        if (limpio.matches(REGEX_HORARIO_INICIO)) {
+            horarioParcial = limpio;
+            return;
+        }
+        // =======================
+        // Horario partido (fin)
+        // =======================
+        if (horarioParcial != null && limpio.matches(REGEX_HORARIO_FIN)) {
+            String completo = horarioParcial + limpio;
+            horarioParcial = null;
+            procesarHorario(completo, x);
+        }
+    }
+
+    ...
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+En la figura \ref{code:PDFHorarioStripper-Horarios} se puede observar la parte del método \texttt{writeString()} que se encarga de procesar los horarios de las clases.
+Esta sección del código identifica los fragmentos de texto que corresponden a los horarios, ya sea en formato completo o partido y llama a la función
+\texttt{procesarHorario()} para extraer la información del horario y almacenarla en el estado de la clase.
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Código de la función procesarHorario de PDFHorarioStripper}
+    \label{code:PDFHorarioStripper-ProcesarHorario}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+public class PDFHorarioStripper extends PDFTextStripper {
+    ...
+    // =======================
+    // Procesamiento de horario
+    // =======================
+
+    private void procesarHorario(String texto, float x) {
+
+        if (codigoMateriaActual == null) return;
+
+        DayOfWeek dia = diaPorColumna(x);
+        if (dia == null) return;
+
+        Intervalo intervalo = HorarioUtils.parseHorario(texto);
+
+        String nombre =
+                (nombreMateriaActual != null && nombreMateriaActual.length() > 0)
+                        ? normalizarNombreMateria(nombreMateriaActual.toString())
+                        : null;
+
+        ClaseHorario clase = new ClaseHorario(
+                codigoMateriaActual,
+                nombre,
+                dia,
+                intervalo
+        );
+
+        horario.get(dia).add(clase);
+        ultimaClaseCreada = clase;
+
+        // Después del primer horario ya NO se acepta más nombre
+        aceptandoNombreMateria = false;
+    }
+    ...
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+En la figura \ref{code:PDFHorarioStripper-ProcesarHorario} se puede observar la función \texttt{procesarHorario()} de la clase \texttt{PDFHorarioStripper},
+que es responsable de procesar un fragmento de texto que representa un horario, extraer la información relevante y almacenarla en el estado de la clase.
+Esta función verifica que haya un código de materia actual, identifica el día de la semana correspondiente a la posición del texto, parsea el horario utilizando la clase \texttt{HorarioUtils}
+y luego crea una instancia de \texttt{ClaseHorario} que se agrega al horario del alumno.
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Código de las Utilidades - PDFHorarioStripper}
+    \label{code:PDFHorarioStripper-Utilidades}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+public class PDFHorarioStripper extends PDFTextStripper {
+    ...
+    // =======================
+    // Utilidades
+    // =======================
+
+    private void registrarColumnaDia(float x, DayOfWeek dia) {
+        final float TOLERANCIA = 5f;
+        for (float px : columnasDias.keySet()) {
+            if (Math.abs(px - x) < TOLERANCIA) return;
+        }
+        columnasDias.put(x, dia);
+    }
+
+    private DayOfWeek diaPorColumna(float xHorario) {
+        float mejor = Float.MAX_VALUE;
+        DayOfWeek dia = null;
+
+        for (var e : columnasDias.entrySet()) {
+            float dx = Math.abs(e.getKey() - xHorario);
+            if (dx < mejor) {
+                mejor = dx;
+                dia = e.getValue();
+            }
+        }
+        return dia;
+    }
+    private String limpiarNombreMateria(String texto) {
+
+        // Normaliza espacios
+        texto = texto.replaceAll("\\s+", " ").trim();
+
+        // Si no hay guion, no hay docente
+        if (!texto.contains("-")) {
+            return texto;
+        }
+
+        String[] partes = texto.split("-");
+
+        if (partes.length < 2) {
+            return texto;
+        }
+
+        String izquierda = partes[0].trim();   // Materia + Docente
+        String derecha = partes[1].trim();     // Grupo
+
+        // Quitar el último "token largo" de la izquierda (docente)
+        String[] palabras = izquierda.split(" ");
+
+        StringBuilder materia = new StringBuilder();
+        for (String p : palabras) {
+            // Heurística: apellidos suelen ser largos
+            if (p.length() >= 12) {
+                break;
+            }
+            materia.append(p).append(" ");
+        }
+
+        // Añadir grupo (ETIC, A, B, etc.)
+        materia.append(derecha);
+
+        return materia.toString().trim();
+    }
+    private String normalizarNombreMateria(String texto) {
+
+        // Normaliza espacios
+        texto = texto.replaceAll("\\s+", " ").trim();
+
+        // Caso: MATERIA  DOCENTE - GRUPO
+        // Ej: SEM DE TITULACION Y NETZAHUALCOYOTZI - ETIC
+        return texto.replaceAll(
+                "^(.+?)\\s+[A-ZÁÉÍÓÚÑ]{6,}(?:\\s+[A-ZÁÉÍÓÚÑ]{6,})*\\s*-\\s*([A-Z0-9]{1,6})$",
+                "$1 $2"
+        ).trim();
+    }
+    ...
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+En la figura \ref{code:PDFHorarioStripper-Utilidades} se pueden observar varias funciones de utilidad dentro de la clase \texttt{PDFHorarioStripper},
+incluyendo funciones para registrar las columnas de los días de la semana, identificar el día de la semana correspondiente a una posición dada, limpiar y
+normalizar los nombres de las materias.
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Código de los getters - PDFHorarioStripper}
+    \label{code:PDFHorarioStripper-Getters}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+    // =======================
+    // Getters
+    // =======================
+    public Map<DayOfWeek, List<ClaseHorario>> getHorario() {
+        return horario;
+    }
+    public String getNombreAlumno() {
+        return nombreAlumno;
+    }
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+Finalmente, en la figura \ref{code:PDFHorarioStripper-Getters} se pueden observar los getters de la clase \texttt{PDFHorarioStripper}
+que permiten acceder al nombre del alumno y su horario después de que se ha procesado el archivo PDF.
+
+\subsubsection{Clase SelectorDestino}
+La clase \texttt{SelectorDestino} es unicamente responsable de mostrar un diálogo al usuario para seleccionar la ubicación y
+el nombre del archivo de salida donde se guardarán los horarios generados.
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Código de la clase SelectorDestino}
+    \label{code:SelectorDestino}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+public class SelectorDestino {
+    public static Path pedirRutaAlUsuario(String nombrePorDefecto) {
+        // Intentar que el diálogo use la estética del SO actual (Windows, Linux, etc.)
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (Exception e) {
+            // Si falla, Java usará su tema visual por defecto
+        }
+
+        JFileChooser selector = new JFileChooser();
+        selector.setDialogTitle("Seleccionar destino de guardado");
+        selector.setSelectedFile(new File(nombrePorDefecto));
+        // Filtro para asegurar que sea un archivo de texto
+        FileNameExtensionFilter filtro = new FileNameExtensionFilter("Documento de texto (*.txt)", "txt");
+        selector.setFileFilter(filtro);
+
+        int resultado = selector.showSaveDialog(null);
+
+        if (resultado == JFileChooser.APPROVE_OPTION) {
+            File archivo = selector.getSelectedFile();
+            // Verificación manual de extensión .txt si el usuario no la escribió
+            String ruta = archivo.getAbsolutePath();
+            if (!ruta.toLowerCase().endsWith(".txt")) {
+                archivo = new File(ruta + ".txt");
+            }
+            return archivo.toPath();
+        }
+        return null; // El usuario cerró la ventana o canceló
+    }
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
