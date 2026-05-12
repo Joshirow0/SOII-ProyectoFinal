@@ -35,8 +35,7 @@ try (DirectoryStream<Path> stream = Files.newDirectoryStream(CARPETA_PDF, "*.pdf
     \end{lstlisting}
 \end{figure}
 
-\subsubsection*{Justificación de la arquitectura}
-El uso nativo de FCFS en esta etapa del sistema se justifica por la naturaleza secuencial de la interfaz
+El uso nativo de FCFS en esta etapa del sistema se presenta por la naturaleza secuencial de la interfaz
 \texttt{DirectoryStream} provista por Java. El Sistema Operativo, a través de su sistema de archivos,
 actúa como el despachador, entregando las rutas de los documentos a la cola del programa
 exactamente en el orden en que son recuperadas de la tabla de descriptores del directorio.
