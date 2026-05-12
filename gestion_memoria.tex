@@ -1,0 +1,77 @@
+Aunque el lenguaje Java abstrae la gestión directa de la memoria física delegando esta tarea al
+a su sistema automatizado, el desarrollo de este sistema implementa un control explícito sobre las estructuras de datos y los
+recursos del Sistema Operativo para evitar fugas de memoria (\textit{memory leaks}) y la saturación del espacio.
+
+A continuación, se describen las dos estrategias principales utilizadas para la optimización de la memoria y los recursos.
+
+\subsubsection{Liberación de recursos de Entrada/Salida}
+Al interactuar con el sistema de archivos del Sistema Operativo, cada archivo abierto consume un Descriptor de Archivo
+(\textit{File Descriptor}) en la tabla de procesos del kernel. Si estos descriptores y los búferes
+de memoria asociados no se liberan, el sistema puede colapsar. 
+
+Para prevenir esto, el proyecto hace uso del paradigma \textit{try-with-resources},
+el cual garantiza que las conexiones de memoria y los descriptores del SO se cierren atómicamente
+tan pronto como el bloque termine su ejecución, incluso si ocurre una interrupción de software (excepción).
+
+\vspace{-0.5cm}
+\begin{figure}[H]
+    \centering
+    \caption{Gestión segura de memoria y descriptores en I/O}
+    \label{code:gestion_memoria_io}
+    \begin{lstlisting}[language=Java]
+private List<Alumno> cargarAlumnosDesdePDF() throws Exception {
+    // ...
+    // El DirectoryStream asegura la liberacion del iterador de directorio en el SO
+    try (DirectoryStream<Path> stream = Files.newDirectoryStream(CARPETA_PDF, "*.pdf")) {
+        for (Path pdf : stream) {
+            System.out.println("Procesando: " + pdf.getFileName());
+
+            try {
+                // El bloque garantiza que el buffer de memoria del PDDocument
+                // sea destruido inmediatamente tras extraer el texto.
+                try (PDDocument doc = PDDocument.load(pdf.toFile())) {
+                    PDFHorarioStripper stripper = new PDFHorarioStripper();
+                    stripper.getText(doc);
+                    alumnos.add(new Alumno(stripper.getNombreAlumno(), stripper.getHorario()));
+                }
+            } catch (IOException e) {
+                // ... manejo de excepciones
+            }
+        }
+    }
+    return alumnos;
+}
+    \end{lstlisting}
+\end{figure}
+
+Como se observa en la figura \ref{code:gestion_memoria_io}, tanto el flujo del directorio (\texttt{DirectoryStream})
+como el buffer del documento en memoria RAM (\texttt{PDDocument}) están encapsulados.
+Tan pronto como el recolector extrae los horarios, esa memoria es marcada como libre para el sistema.
+
+\subsubsection{Optimización mediante EnumMap}
+Para el almacenamiento de los horarios procesados, el sistema evita el uso de mapas hash tradicionales
+(\texttt{HashMap}) y en su lugar implementa \texttt{EnumMap}.
+
+\vspace{-0.5cm}
+\begin{figure}[H]
+    \centering
+    \caption{Asignación de memoria contigua para estructuras de horarios}
+    \label{code:gestion_memoria_enummap}
+    \begin{lstlisting}[language=Java]
+public static Map<DayOfWeek, List<Intervalo>> unirHorariosOcupados(List<Alumno> alumnos) {
+
+    // Inicializacion optimizada en memoria
+    Map<DayOfWeek, List<Intervalo>> ocupados = new EnumMap<>(DayOfWeek.class);
+
+    for (DayOfWeek d : DayOfWeek.values()) {
+        ocupados.put(d, new ArrayList<>());
+    }
+    // ... union de intervalos
+}
+    \end{lstlisting}
+\end{figure}
+
+A nivel de arquitectura, \texttt{EnumMap} se representa internamente como un arreglo plano (\textit{array})
+en lugar de una estructura de nodos enlazados. Esta decisión de diseño asigna un bloque de
+memoria contiguo, lo que mejora drásticamente la Localidad de Referencia Espacial en la memoria Caché del
+procesador al iterar sobre los días de la semana, reduciendo los fallos de página y acelerando el cálculo de intervalos libres.
