@@ -1,0 +1,43 @@
+Para este sistema, se implementó el manejo de hilos para permitir la interrupción del programa por parte del usuario a través del teclado.
+Esto se hizo para mejorar la experiencia del usuario y permitirle cancelar la ejecución del programa en cualquier momento si así lo desea.
+
+En el código, se implementó el uso de hilos de la siguiente manera:
+\vspace{-0.5cm}
+\begin{figure}[H]
+    \centering
+    \caption{Interrupción de hardware para el teclado}
+    \label{code:interrupcion_hardware_teclado}
+    \begin{lstlisting}[language=Java]
+public void ejecutar() throws Exception {
+System.out.println("El programa iniciara en 3 segundos.");
+System.out.println("Presiona [ENTER] en cualquier momento para cancelar...");
+
+// Hilo para vigilar el teclado y permitir la interrupcion del programa
+Thread hiloInterrupcion = new Thread(() -> {
+    try {
+        if (System.in.read() != -1) { 
+            System.out.println("\n[!] Ejecucion cancelada por el usuario.");
+            System.exit(0);
+        }
+    } catch (Exception e) {
+    }
+});
+        
+// Al ser Daemon, este hilo morira automaticamente cuando el programa termine
+hiloInterrupcion.setDaemon(true); 
+hiloInterrupcion.start();
+
+// El hilo principal hace la cuenta regresiva
+for (int i = 3; i > 0; i--) {
+    System.out.print(i + "... ");
+    Thread.sleep(1000);
+}
+System.out.println("\nIniciando procesamiento\n");
+... // Resto del codigo
+    \end{lstlisting}
+\end{figure}
+
+Como se puede ver en la figura \ref{code:interrupcion_hardware_teclado}, se implementaron dos procesos 
+(hilos) en la función \texttt{ejecutar()} de la clase \texttt{Generador.java}.
+Un hilo  es para vigilar el teclado y permitir la interrupción del programa. El otro para hacer la cuenta regresiva y continuar con el proceso. 
+El hilo que vigila el teclado se ejecuta de manera concurrente con el hilo principal, por lo que se puede interrumpir el programa en cualquier momento.

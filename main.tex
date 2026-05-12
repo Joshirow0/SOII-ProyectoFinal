@@ -46,6 +46,8 @@
 
 
 \begin{document}
+\tableofcontents
+\newpage
 
 \section{Descripción}
 % De que trata el proyecto
@@ -64,11 +66,15 @@ así como la integración de los componentes críticos que permiten la operativi
 
 \subsection{Manejo de hilos}
 % Implementacion de hilos, sincronización, etc.
+\input{manejo_hilos.tex}
+
 \subsection{Gestión de memoria}
 % Explicación de como se maneja la memoria, estructuras de datos, etc.
+\input{gestion_memoria.tex}
 
-\subsection{Algoritmos de priodad}
+\subsection{Algoritmos de prioridad: FCFS}
 % Explicación del algoritmo utilizado para la gestión de procesos, como se implementa, etc.
+\input{algoritmos_prioridad.tex}
 
 \subsection{Seguridad}
 % Parrafo introductorio
@@ -83,7 +89,10 @@ así como la integración de los componentes críticos que permiten la operativi
 % Explicación de como se manejan los archivos, lectura, escritura, etc.
 
 \section{Pruebas}
-% parrafo introductorio
+En este apartado se exhibe la validación empírica del sistema mediante la visualización de sus distintos estados de ejecución.
+La documentación gráfica se divide en dos bloques principales: primero, el flujo de operación normal,
+donde se comprueba la correcta sincronización de los hilos y la captura de interrupciones; y segundo, el flujo de vulnerabilidades,
+donde se evidencian comportamientos anómalos o fallos controlados del software.
 
 \subsection{Flujo normal}
 % Exclusivamente imagenes de la ejecución del programa, sin errores ni vulnerabilidades
