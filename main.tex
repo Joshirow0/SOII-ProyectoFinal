@@ -5,16 +5,14 @@
 \usepackage{graphicx}
 \usepackage{geometry}
 \usepackage{xcolor}
-\usepackage{fontspec}
+%\usepackage{fontspec}
 \usepackage{listings}
 \usepackage{float}
 
-
-
-\setmainfont{Arial}
+%\setmainfont{Arial}
 \geometry{a4paper, margin=1in}
 
-\lstdefinestyle{JavaStyle}{
+\lstdefinestyle{Java}{
 	language=Java,
 	basicstyle=\ttfamily\small,
 	keywordstyle=\color{blue}\bfseries,
@@ -36,26 +34,58 @@
 	showspaces=false
 }
 
-\lstset{style=JavaStyle}
+\lstset{style=Java}
 
 
 \begin{document}
 
 \section{Descripción}
 % De que trata el proyecto
+%\input{descripcion.tex}
 
 \section{Código}
+% 1 parrafo introductorio
 \subsection{Archivos}
 % Explicacion de las rutas de los archivos y que hace cada uno
 
 \subsection{Manejo de hilos}
-% Implementacion de hilos, sincronizacion, etc.
+% Implementacion de hilos, sincronización, etc.
 \subsection{Gestión de memoria}
-% Explicacion de como se maneja la memoria, estructuras de datos, etc.
+% Explicación de como se maneja la memoria, estructuras de datos, etc.
+
+\subsection{Algoritmos de priodad}
+% Explicación del algoritmo utilizado para la gestión de procesos, como se implementa, etc.
 
 \subsection{Seguridad}
-% Medidas de seguridad implementadas, manejo de errores, etc.
-\subsubsection{}
+% Parrafo introductorio
+
+
+\subsubsection{Memoria}
+% Seguridad sobre la memoria y los archivos
+\subsubsection{Red}
+% Seguridad sobre la red
+
+\subsection{Manejo de archivos}
+% Explicación de como se manejan los archivos, lectura, escritura, etc.
+
+\section{Pruebas}
+% parrafo introductorio
+
+\subsection{Flujo normal}
+% Exclusivamente imagenes de la ejecución del programa, sin errores ni vulnerabilidades
+% Interrupciones incluidas
+\subsection{Flujo vulnerabilidades}
+% Imágenes de la ejecución del programa con vulnerabilidades, errores, etc.
+% Solo imágenes, sin analisis
+
+\subsection{Comparativa entre algoritmos de prioridad}
+\subsubsection{FCFS (First Come First Serve)}
+\subsubsection{SJF (Shortest Job First)}
+\subsubsection{Round Robin}
+
+\section{Análisis de vulnerabilidades}
+% Explicación de las vulnerabilidades encontradas, como se explotaron, etc.
+% con \ref a las imagenes de la sección anterior
 
 
 
