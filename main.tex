@@ -1,6 +1,6 @@
 \documentclass{article}
 \usepackage[utf8]{inputenc}
-\usepackage[spanish]{babel}
+\usepackage[spanish, mexico]{babel}
 
 \usepackage{geometry}
 \usepackage{float}
@@ -49,7 +49,7 @@
 \tableofcontents
 \newpage
 
-\section{Descripción}
+\section{Descripción del Sistema}
 % De que trata el proyecto
 \input{descripcion.tex}
 
@@ -60,30 +60,39 @@ lo que permite una arquitectura modular y altamente desacoplada. Esta organizaci
 la gestión de procesos y recursos mediante una estructura de clases donde cada componente posee
 una responsabilidad bien definida. En las secciones siguientes,se detalla la lógica de cada módulo,
 así como la integración de los componentes críticos que permiten la operatividad del sistema.
-\subsection{Archivos}
+\subsection{Archivos}\label{sec:archivos}
 % Explicacion de las rutas de los archivos y que hace cada uno
 \input{archivos.tex}
 
-\subsection{Manejo de hilos}
+\subsection{Manejo de hilos}\label{sec:hilos}
 % Implementacion de hilos, sincronización, etc.
 \input{manejo_hilos.tex}
 
-\subsection{Gestión de memoria}
+\subsection{Gestión de memoria}\label{sec:memoria}
 % Explicación de como se maneja la memoria, estructuras de datos, etc.
 \input{gestion_memoria.tex}
 
-\subsection{Algoritmos de prioridad: FCFS}
+\subsection{Algoritmos de prioridad: FCFS}\label{sec:algoritmos}
 % Explicación del algoritmo utilizado para la gestión de procesos, como se implementa, etc.
 \input{algoritmos_prioridad.tex}
 
-\subsection{Seguridad}
-% Parrafo introductorio
+\subsection{Seguridad}\label{sec:seguridad}
+Para evidenciar la importancia de las medidas de seguridad integradas en el proyecto,
+se desarrolló una versión alternativa del sistema con vulnerabilidades simuladas de forma
+deliberada. Esta versión vulnerable replica la estructura del proyecto original pero introduce
+fallos controlados en la clase \texttt{Generador.java}, lo que permite contrastar directamente
+el comportamiento seguro contra el comportamiento comprometido.
 
+Las vulnerabilidades simuladas se clasifican en dos categorías: las que afectan la integridad
+de la memoria y los archivos del sistema operativo, y las que simulan fallos de red durante la
+transmisión de datos. En ambos casos, se demuestra cómo las decisiones de diseño del proyecto
+original previenen cada uno de estos escenarios.
 
-\subsubsection{Memoria}
-% Seguridad sobre la memoria y los archivos
-\subsubsection{Red}
-% Seguridad sobre la red
+\subsubsection{Memoria y archivos}\label{sec:seguridad-memoria}
+\input{seguridadMemoria.tex}
+
+\subsubsection{Red}\label{sec:seguridad-red}
+\input{seguridadRed.tex}
 
 \subsection{Manejo de archivos}
 % Explicación de como se manejan los archivos, lectura, escritura, etc.

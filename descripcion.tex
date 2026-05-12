@@ -1,17 +1,129 @@
-El sistema es una aplicación monolítica que:
-\begin{itemize}
-    \item Lee archivos PDF de horarios de alumnos desde una carptea local.
-    \item Extrae información mediante \texttt{PDFBox} (códig de materia, nombres, días, intervalos y horarios).
-    \item Procesa los datos para calcular horarios ocupados y libres.
-    \item Genera un archivo de texto con los resultados.
-\end{itemize}
-Aun así, esta arquitectura presenta limitaciones significativas, por ejemplo:
-\begin{itemize}
-    \item Procesamiento centralizado en una sola máquina.
-    \item No permite acceso concurrente de múltiples usuarios.
-    \item Requiere instalación local para cada equipo.
-    \item Dificulta la actualización y mantenimiento del sistema.
-    \item No aprovecha recursos distribuidos.
-\end{itemize}
-\subsubsection{Arquitectura Propuesta:}
-A continuación se propone la estructura que tiene este programna desplegado a un servidor real.
+El proyecto \textbf{Horarios} es un sistema desarrollado en Java cuyo propósito es automatizar la
+extracción de horarios académicos a partir de documentos PDF institucionales, procesarlos y generar un
+reporte consolidado que incluya tanto los horarios individuales de cada alumno como los intervalos
+de tiempo libre que todos comparten. Su origen responde a una necesidad concreta: coordinar
+las agendas de varios estudiantes es una tarea manual, propensa a errores y que consume un tiempo
+considerable cuando se realiza a mano. El sistema resuelve ese problema transformando archivos PDF
+—un formato que no está diseñado para ser leído por software de forma trivial— en información
+estructurada y útil.
+
+\subsection{Arquitectura del sistema}
+
+Desde las primeras etapas de desarrollo, el diseño se pensó para que cada componente
+tuviera una responsabilidad única y bien delimitada. La tabla~\ref{tab:modulos} resume los
+módulos que componen el sistema y el rol que cada uno desempeña.
+
+\begin{table}[H]
+\centering
+\caption{Módulos del sistema y sus responsabilidades}
+\label{tab:modulos}
+\begin{tabular}{|l|p{9.5cm}|}
+\hline
+\textbf{Módulo} & \textbf{Responsabilidad} \\
+\hline
+\texttt{Main}              & Punto de entrada. Instancia al orquestador y delega la ejecución. No contiene lógica de negocio. \\
+\hline
+\texttt{Generador}         & Orquestador central: coordina la lectura de PDFs, gestiona el hilo de interrupción y escribe el archivo de salida. \\
+\hline
+\texttt{PDFHorarioStripper} & Extracción de texto. Extiende \texttt{PDFTextStripper} (Apache PDFBox) y aplica un autómata de estados para identificar códigos, nombres, días y horarios con precisión columnar. \\
+\hline
+\texttt{HorarioUtils}      & Utilería algorítmica: parseo de horarios, unión de intervalos, cálculo de complementos y determinación de huecos libres comunes. \\
+\hline
+\texttt{Alumno}            & Entidad de dominio que encapsula el nombre completo de un estudiante y su mapa de horarios por día de la semana. \\
+\hline
+\texttt{ClaseHorario}      & Entidad de dominio que representa una materia con su código, nombre, día e intervalo de tiempo. \\
+\hline
+\texttt{Intervalo}         & Objeto de valor inmutable que modela un rango horario (hora de inicio y hora de fin). \\
+\hline
+\texttt{SelectorDestino}   & Interfaz gráfica mínima (diálogo nativo del SO) para que el usuario elija la ruta de salida antes de cualquier escritura en disco. \\
+\hline
+\end{tabular}
+\end{table}
+
+Esta separación no es accidental. Al aislar la lógica de parseo de PDF de la lógica de manipulación
+temporal y de la lógica de escritura, cada módulo puede evolucionar, probarse o
+reemplazarse de forma independiente. Si el día de mañana el formato del PDF institucional cambia, basta con
+ajustar \texttt{PDFHorarioStripper} sin tocar una sola línea del cálculo de intervalos ni del
+flujo de salida. La implementación detallada de cada clase y su código fuente se presenta en la
+sección~\ref{sec:archivos}.
+
+La figura~\ref{fig:flujo} ilustra el flujo general de datos a través de estos módulos: desde la
+entrada de archivos PDF hasta la generación del reporte final.
+
+\begin{figure}[H]
+\centering
+\caption{Flujo de datos del sistema Horarios}
+\label{fig:flujo}
+\fbox{
+\begin{minipage}{0.85\textwidth}
+\vspace{0.4cm}
+\centering
+\texttt{PDFs institucionales}\\[0.2cm]
+$\big\downarrow$\\[0.1cm]
+\fbox{\texttt{PDFHorarioStripper}} $\longrightarrow$ Extrae texto posicional y construye objetos \texttt{ClaseHorario}\\[0.2cm]
+$\big\downarrow$\\[0.1cm]
+\fbox{\texttt{Generador}} $\longrightarrow$ Ensambla lista de \texttt{Alumno} y delega cálculos\\[0.2cm]
+$\big\downarrow$\\[0.1cm]
+\fbox{\texttt{HorarioUtils}} $\longrightarrow$ Unión de intervalos, cálculo de complementos\\[0.2cm]
+$\big\downarrow$\\[0.1cm]
+\texttt{Archivo .txt con horarios individuales + horarios libres comunes}
+\vspace{0.4cm}
+\end{minipage}
+}
+\end{figure}
+
+\subsection{Seguridad integrada en el diseño}
+
+El tema de la seguridad no se incorporó al proyecto como una capa añadida al final, sino como
+parte integral de las decisiones arquitectónicas. La tabla~\ref{tab:seguridad} resume
+las medidas de protección que el sistema aplica y el principio de seguridad al que responde
+cada una.
+
+\begin{table}[H]
+\centering
+\caption{Medidas de seguridad integradas en el diseño}
+\label{tab:seguridad}
+\begin{tabular}{|p{4.5cm}|p{4.5cm}|p{4cm}|}
+\hline
+\textbf{Mecanismo} & \textbf{Efecto} & \textbf{Principio} \\
+\hline
+Atributos \texttt{private final} en entidades de dominio &
+Los objetos no pueden ser modificados tras su creación, evitando alteraciones inesperadas. &
+Mínimo privilegio / Inmutabilidad \\
+\hline
+Constructor privado en \texttt{HorarioUtils} &
+Impide instanciar o extender la clase; solo se exponen los métodos estáticos necesarios. &
+Mínimo privilegio \\
+\hline
+\texttt{try-with-resources} en toda operación de I/O &
+Descriptores de archivo del kernel se liberan de forma determinista, incluso ante excepciones. &
+Control de acceso a recursos del SO \\
+\hline
+Diálogo de \texttt{SelectorDestino} antes de escribir &
+El usuario autoriza explícitamente la ruta de salida; si cancela, no se escribe nada en disco. &
+Consentimiento explícito \\
+\hline
+Aborto total ante PDF corrupto &
+Se detiene la ejecución completa en lugar de generar resultados parciales potencialmente incorrectos. &
+Integridad de datos \\
+\hline
+Hilo de interrupción como \textit{daemon} &
+El usuario puede cancelar en cualquier momento; el hilo se elimina automáticamente al terminar el programa, sin dejar procesos huérfanos. &
+Control de acceso / Limpieza de recursos \\
+\hline
+\end{tabular}
+\end{table}
+
+\noindent Varias de estas medidas —como la gestión de descriptores mediante \texttt{try-with-resources} y la
+optimización de estructuras en memoria— se analizan con mayor profundidad técnica en la
+sección~\ref{sec:memoria}. De igual forma, el mecanismo de hilos concurrentes para la interrupción
+por teclado se detalla en la sección~\ref{sec:hilos}.
+
+\vspace{0.3cm}
+
+En conjunto, El proyecto Horarios demuestra que la modularidad y la seguridad no son requisitos opuestos
+ni complementarios tardíos, sino que surgen de manera natural cuando cada decisión de diseño se toma
+preguntándose qué es lo mínimo que este componente necesita saber, hacer y acceder para cumplir
+su propósito. Los detalles de implementación de cada módulo, la política de planificación de procesos
+y las estrategias de seguridad a nivel de memoria y red se desarrollan en las secciones
+subsiguientes del presente documento.
