@@ -1,0 +1,17 @@
+El sistema es una aplicación monolítica que:
+\begin{itemize}
+    \item Lee archivos PDF de horarios de alumnos desde una carptea local.
+    \item Extrae información mediante \texttt{PDFBox} (códig de materia, nombres, días, intervalos y horarios).
+    \item Procesa los datos para calcular horarios ocupados y libres.
+    \item Genera un archivo de texto con los resultados.
+\end{itemize}
+Aun así, esta arquitectura presenta limitaciones significativas, por ejemplo:
+\begin{itemize}
+    \item Procesamiento centralizado en una sola máquina.
+    \item No permite acceso concurrente de múltiples usuarios.
+    \item Requiere instalación local para cada equipo.
+    \item Dificulta la actualización y mantenimiento del sistema.
+    \item No aprovecha recursos distribuidos.
+\end{itemize}
+\subsubsection{Arquitectura Propuesta:}
+A continuación se propone la estructura que tiene este programna desplegado a un servidor real.
