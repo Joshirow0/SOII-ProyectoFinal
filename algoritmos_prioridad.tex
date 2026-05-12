@@ -1,0 +1,48 @@
+El sistema actual basa su ejecución en un modelo de planificación no expropiativo,
+es decir, que los procesos no pueden ser interrumpidos, regido por el algoritmo de prioridad \textbf{FCFS (First-Come, First-Served)}.
+En este enfoque teórico, los procesos son atendidos estrictamente en el orden de llegada a la cola de ejecución,
+sin importar su tamaño, complejidad o tiempo estimado
+de ráfaga de CPU (\textit{burst time}).
+
+\subsubsection*{Implementación en el código}
+En el contexto de este proyecto, la "llegada de procesos" equivale a la lectura y carga de los archivos
+PDF desde el directorio fuente en el sistema operativo. Esta lógica de despacho se encuentra
+implementada en la clase \texttt{Generador.java}, específicamente dentro del método
+\texttt{cargarAlumnosDesdePDF()}.
+
+\vspace{-0.3cm}
+\begin{figure}[H]
+    \centering
+    \caption{Implementación de la política FCFS mediante \texttt{DirectoryStream}}
+    \label{code:fcfs_actual}
+    \begin{lstlisting}[language=Java]
+try (DirectoryStream<Path> stream = Files.newDirectoryStream(CARPETA_PDF, "*.pdf")) {
+    for (Path pdf : stream) {
+        System.out.println("Procesando: " + pdf.getFileName());
+        
+        try {
+            // El hilo toma el archivo y usa la CPU hasta terminar (Non-preemptive)
+            try (PDDocument doc = PDDocument.load(pdf.toFile())) {
+                PDFHorarioStripper stripper = new PDFHorarioStripper();
+                stripper.getText(doc);
+                alumnos.add(new Alumno(stripper.getNombreAlumno(), stripper.getHorario()));
+            }
+        } catch (IOException e) {
+            // Manejo de interrupciones de software...
+        }
+    }
+}
+    \end{lstlisting}
+\end{figure}
+
+\subsubsection*{Justificación de la arquitectura}
+El uso nativo de FCFS en esta etapa del sistema se justifica por la naturaleza secuencial de la interfaz
+\texttt{DirectoryStream} provista por Java. El Sistema Operativo, a través de su sistema de archivos,
+actúa como el despachador, entregando las rutas de los documentos a la cola del programa
+exactamente en el orden en que son recuperadas de la tabla de descriptores del directorio.
+
+Una vez que el hilo de ejecución principal toma un documento específico e invoca a la clase \texttt{PDFHorarioStripper},
+la CPU se dedica exclusivamente a extraer el contenido de dicho archivo hasta su finalización.
+Al no existir una evaluación heurística previa (como inspeccionar el peso en bytes del archivo) ni un
+temporizador que interrumpa la ejecución mediante un \textit{quantum} de tiempo,
+el diseño asegura que el tiempo de espera de cada documento dependa exclusivamente de su posición en la cola.
