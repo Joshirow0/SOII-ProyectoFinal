@@ -1,0 +1,155 @@
+La versión vulnerable simula un escenario de fallo de red durante la escritura del archivo de salida.
+Aunque el sistema no opera sobre una red real, el mecanismo reproduce fielmente los efectos de una
+desconexión: datos incompletos, escritura parcial y corrupción del archivo final. El análisis
+de esta simulación permite comprender por qué el diseño del proyecto original es resistente ante
+este tipo de interrupciones.
+
+\paragraph{Simulación de caída de red.}
+En la versión vulnerable, el usuario puede presionar la tecla \texttt{V} durante la ejecución
+para activar una bandera \texttt{volatile} llamada \texttt{internetCaido}. Esta bandera se consulta
+en múltiples puntos del flujo de escritura, y cuando se activa, el programa abandona el procesamiento
+normal e inyecta datos corruptos en el archivo.
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Hilo de escucha para simular caída de red}
+    \label{code:vuln-hilo-red}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+private volatile boolean internetCaido = false;
+
+Thread hiloTeclado = new Thread(() -> {
+    try {
+        while (true) {
+            int tecla = System.in.read();
+            if (tecla == '\n') { // ENTER: cancelar
+                cancelado = true;
+                System.exit(0);
+            }
+            if (tecla == 'v' || tecla == 'V') { // V: simular caida de red
+                internetCaido = true;
+                System.out.println("\n[!] Internet caido...");
+                break;
+            }
+        }
+    } catch (Exception e) {}
+});
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+\paragraph{Escritura en tiempo real sin buffer de integridad.}
+El diseño vulnerable escribe los datos al disco \textit{conforme se procesan}, introduciendo
+incluso un retardo artificial de 200\,ms entre cada registro para simular una transmisión por red.
+Esto significa que si la ``conexión'' se interrumpe a mitad de un alumno, el archivo queda en un
+estado parcialmente escrito e irrecuperable.
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Escritura en tiempo real con comprobaciones de red}
+    \label{code:vuln-escritura-red}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+private void escribirAlumno(Alumno a, OutputStream out) throws Exception {
+    escribirLinea(out, "[" + a.getNombreCompleto() + "]");
+
+    for (DayOfWeek dia : diasSemana()) {
+        if (internetCaido) {
+            escribirCorrupcionTotal(out);  // 1000 bytes basura
+            return;
+        }
+        escribirLinea(out, "  " + diaEnEspanol(dia) + ":");
+        // ...
+        for (ClaseHorario c : clases) {
+            if (internetCaido) {
+                escribirCorrupcionParcial(out);  // 20 bytes basura
+                escribirCorrupcionTotal(out);    // 1000 bytes basura
+                return;
+            }
+            escribirLinea(out, "    " + c.getIntervalo() + "  " + c.getNombreMateria());
+            Thread.sleep(200);  // Simula latencia de red
+        }
+    }
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+La tabla~\ref{tab:vuln-red-escenarios} resume los posibles estados del archivo dependiendo del
+momento en que se produce la ``caída de red''.
+
+\begin{table}[H]
+\centering
+\caption{Estados del archivo según el momento de la interrupción de red}
+\label{tab:vuln-red-escenarios}
+\begin{tabular}{|p{3.8cm}|p{4.5cm}|p{4.8cm}|}
+\hline
+\textbf{Momento de la caída} & \textbf{Contenido del archivo} & \textbf{Consecuencia} \\
+\hline
+Antes de procesar algún alumno &
+Solo encabezado + ``DATOS INCOMPLETOS'' + 1000 bytes binarios &
+Archivo ilegible \\
+\hline
+A mitad de un día de un alumno &
+Alumno parcial + 1000 bytes binarios &
+Datos incompletos, archivo corrupto \\
+\hline
+Entre un registro y otro dentro de un día &
+Registro parcial + 20 bytes binarios + 1000 bytes binarios &
+Mezcla de texto y basura binaria \\
+\hline
+\end{tabular}
+\end{table}
+
+\paragraph{Protección en el proyecto original.}
+El proyecto original no presenta esta vulnerabilidad por dos razones de diseño:
+
+\begin{enumerate}
+    \item \textbf{Separación entre procesamiento y escritura.}
+    En el proyecto original, primero se cargan \textit{todos} los alumnos en memoria mediante
+    \texttt{cargarAlumnosDesdePDF()}, y solo después de verificar que la carga fue exitosa se
+    procede a escribir el archivo completo con \texttt{escribirHorariosAlumnos()}. Si cualquier
+    PDF falla durante la carga, el proceso se aborta antes de haber escrito un solo byte en
+    el archivo de salida.
+
+    \item \textbf{Escritura atómica mediante \texttt{BufferedWriter}.}
+    Al utilizar un \texttt{BufferedWriter} envuelto en un bloque \texttt{try-with-resources},
+    los datos se escriben de forma controlada y el archivo se cierra correctamente incluso si
+    ocurre una excepción. No existe un punto intermedio donde el flujo pueda quedar a medias.
+\end{enumerate}
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Flujo seguro del proyecto original: primero carga, después escribe}
+    \label{code:secure-flujo-red}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+// Proyecto original: carga completa antes de escribir
+List<Alumno> alumnos;
+try {
+    alumnos = cargarAlumnosDesdePDF();  // Si falla, se aborta aqui
+} catch (RuntimeException e) {
+    System.err.println("[!] Proceso terminado.");
+    return;  // No se escribe nada en disco
+}
+
+// Solo si la carga fue exitosa, se escribe el archivo completo
+try (BufferedWriter writer = Files.newBufferedWriter(
+        rutaSalida,
+        StandardOpenOption.CREATE,
+        StandardOpenOption.TRUNCATE_EXISTING)) {
+    escribirHorariosAlumnos(alumnos, writer);
+    writer.newLine();
+    escribirHorariosLibres(alumnos, writer);
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+En resumen, la arquitectura del proyecto original garantiza que el archivo de salida
+solo se genera cuando \textit{todos} los datos han sido validados y procesados correctamente.
+No existe un estado intermedio en el que el archivo pueda quedar parcialmente escrito ni
+un mecanismo externo que pueda inyectar contenido corrupto durante la escritura.

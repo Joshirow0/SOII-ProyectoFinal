@@ -1,0 +1,161 @@
+La versión vulnerable del sistema introduce tres mecanismos que comprometen la integridad de los
+datos escritos en disco y la correcta gestión de los recursos del sistema operativo. A continuación
+se analiza cada uno y se contrasta con la medida de protección que el proyecto original implementa.
+
+\paragraph{Inyección silenciosa de datos falsos.}
+En la versión vulnerable, la función \texttt{escribirLinea()} intercepta la quinta línea del
+archivo de salida y la sustituye por un horario completamente ficticio, sin que el usuario
+reciba ningún tipo de advertencia.
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Inyección de datos falsos en la versión vulnerable}
+    \label{code:vuln-inyeccion}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+private static final int LINEA_CORRUPCION = 5;
+private int contadorLineas = 0;
+
+private void escribirLinea(OutputStream out, String texto) throws Exception {
+    contadorLineas++;
+    // Si esta es la linea marcada para corrupcion, sustituir por datos falsos
+    if (contadorLineas == LINEA_CORRUPCION) {
+        texto = "    " + horaFalsa() + "-" + horaFalsa() + "  " + materiaFalsa();
+    }
+    out.write((texto + "\n").getBytes());
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+El método \texttt{horaFalsa()} genera horas imposibles (valores entre 20 y 49) y
+\texttt{materiaFalsa()} selecciona nombres absurdos de un arreglo predefinido. El resultado
+es un archivo que \textit{parece} correcto a simple vista pero contiene al menos un registro
+fraudulento.
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Generación de datos ficticios}
+    \label{code:vuln-datos-falsos}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+private static final String[] MATERIAS_FALSAS = {
+    "Somnolencia Fisica", "Filosofia Medieval", "Cocina Molecular",
+    "Ingenieria en Tiktok", "Folclor milagroso", "Economia de Marte",
+    "Latin Lover", "Tanatologia", "Sociologia Perruna",
+    "Botanica Aerea", "Derecho Galactico", "Etica no tan Etica"
+};
+
+private String horaFalsa() {
+    int hora = new Random().nextInt(30) + 20; // valores de 20 a 49
+    int minuto = new Random().nextBoolean() ? 0 : 30;
+    return String.format("%d:%02d", hora, minuto);
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+En el proyecto original, esta vulnerabilidad no existe porque la escritura se realiza a
+través de un \texttt{BufferedWriter} que recibe directamente los datos calculados por
+\texttt{HorarioUtils}, sin ningún punto intermedio donde el contenido pueda ser interceptado
+o sustituido. La cadena de datos fluye de forma determinista desde la extracción hasta la
+escritura, sin contadores de línea ni condicionales que alteren el contenido.
+
+\paragraph{Corrupción binaria del archivo de salida.}
+La versión vulnerable incluye dos métodos que escriben bytes aleatorios directamente en el
+flujo de salida, corrompiendo el archivo a nivel binario.
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Escritura de datos binarios corruptos}
+    \label{code:vuln-corrupcion-binaria}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+private void escribirCorrupcionParcial(OutputStream out) throws Exception {
+    byte[] basura = new byte[20];
+    new Random().nextBytes(basura);
+    out.write(basura);
+}
+
+private void escribirCorrupcionTotal(OutputStream out) throws Exception {
+    byte[] basura = new byte[1000];
+    new Random().nextBytes(basura);
+    out.write(basura);
+    out.flush();
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+Esto es posible porque la versión vulnerable utiliza un \texttt{OutputStream} crudo en lugar de un
+\texttt{BufferedWriter}. Al operar a nivel de bytes, cualquier parte del código puede inyectar
+contenido arbitrario —incluyendo datos no textuales— sin que el compilador ni el \textit{runtime}
+lo impidan. La tabla~\ref{tab:vuln-writer-vs-stream} compara ambos enfoques.
+
+\begin{table}[H]
+\centering
+\caption{Comparación de mecanismos de escritura}
+\label{tab:vuln-writer-vs-stream}
+\begin{tabular}{|p{3.5cm}|p{5cm}|p{5cm}|}
+\hline
+\textbf{Aspecto} & \textbf{Proyecto original} & \textbf{Versión vulnerable} \\
+\hline
+Clase de escritura & \texttt{BufferedWriter} & \texttt{OutputStream} (crudo) \\
+\hline
+Tipo de datos & Cadenas de texto con codificación explícita & Arreglos de bytes sin control de codificación \\
+\hline
+¿Permite inyectar bytes arbitrarios? & No — la API solo acepta \texttt{String} y \texttt{char[]} & Sí — acepta cualquier \texttt{byte[]} \\
+\hline
+Integridad del archivo & Garantizada por diseño & Comprometida \\
+\hline
+\end{tabular}
+\end{table}
+
+\paragraph{Manejo permisivo de excepciones.}
+Cuando la versión vulnerable encuentra un PDF que no puede procesar, atrapa la excepción
+de forma genérica y continúa con los archivos restantes como si nada hubiera ocurrido.
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Manejo permisivo de errores en la versión vulnerable}
+    \label{code:vuln-exception}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+// Version vulnerable: ignora el error y continua
+} catch (Exception e) {
+    System.err.println("[!] Error en: " + pdf.getFileName());
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Manejo estricto de errores en el proyecto original}
+    \label{code:secure-exception}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+// Proyecto original: aborta toda la ejecucion
+} catch (IOException e) {
+    System.err.println("\n[!] Error fatal:");
+    System.err.println("[!] PDF no valido: " + pdf.getFileName());
+    System.err.println("[!] Detalle: " + e.getMessage());
+    System.err.println("[!] Se cancela toda la ejecucion.\n");
+    throw new RuntimeException(
+            "Proceso cancelado por archivo PDF no valido: " + pdf.getFileName(), e
+    );
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+La diferencia es fundamental: en el proyecto original, un solo archivo corrupto detiene todo el
+proceso para evitar generar un reporte con información incompleta o potencialmente incorrecta.
+Este enfoque prioriza la integridad de los datos sobre la tolerancia a fallos, siguiendo el principio
+de que es preferible no producir ningún resultado a producir uno que el usuario podría asumir
+como válido sin saber que está incompleto.
