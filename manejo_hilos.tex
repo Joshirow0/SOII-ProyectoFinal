@@ -1,43 +1,96 @@
-Para este sistema, se implementó el manejo de hilos para permitir la interrupción del programa por parte del usuario a través del teclado.
-Esto se hizo para mejorar la experiencia del usuario y permitirle cancelar la ejecución del programa en cualquier momento si así lo desea.
+Para este sistema, se implementó el manejo de hilos con el objetivo de permitir el procesamiento concurrente de múltiples archivos PDF dentro del programa.
 
-En el código, se implementó el uso de hilos de la siguiente manera:
+Inicialmente, el sistema únicamente utilizaba un hilo secundario para detectar interrupciones por parte del usuario mediante el teclado. Posteriormente, se incorporó un modelo de procesamiento concurrente utilizando un pool de hilos administrado mediante \texttt{ExecutorService}.
+
+Esto permitió que múltiples archivos PDF fueran procesados simultáneamente, aproximando el comportamiento del sistema a conceptos reales de concurrencia y planificación de tareas en Sistemas Operativos.
+
 \vspace{-0.5cm}
 \begin{figure}[H]
     \centering
-    \caption{Interrupción de hardware para el teclado}
-    \label{code:interrupcion_hardware_teclado}
+    \caption{Pool de hilos para procesamiento concurrente}
+    \label{code:pool_hilos}
     \begin{lstlisting}[language=Java]
-public void ejecutar() throws Exception {
-System.out.println("El programa iniciara en 3 segundos.");
-System.out.println("Presiona [ENTER] en cualquier momento para cancelar...");
+ExecutorService pool =
+    Executors.newFixedThreadPool(4);
 
-// Hilo para vigilar el teclado y permitir la interrupcion del programa
-Thread hiloInterrupcion = new Thread(() -> {
-    try {
-        if (System.in.read() != -1) { 
-            System.out.println("\n[!] Ejecucion cancelada por el usuario.");
-            System.exit(0);
-        }
-    } catch (Exception e) {
-    }
-});
-        
-// Al ser Daemon, este hilo morira automaticamente cuando el programa termine
-hiloInterrupcion.setDaemon(true); 
-hiloInterrupcion.start();
+List<Future<Alumno>> futures =
+    new ArrayList<>();
 
-// El hilo principal hace la cuenta regresiva
-for (int i = 3; i > 0; i--) {
-    System.out.print(i + "... ");
-    Thread.sleep(1000);
+for (Path pdf : stream) {
+
+    System.out.println(
+        "[MAIN] Enviando tarea: "
+        + pdf.getFileName());
+
+    ProcesadorPDFTask tarea =
+        new ProcesadorPDFTask(pdf);
+
+    futures.add(pool.submit(tarea));
 }
-System.out.println("\nIniciando procesamiento\n");
-... // Resto del codigo
     \end{lstlisting}
 \end{figure}
 
-Como se puede ver en la figura \ref{code:interrupcion_hardware_teclado}, se implementaron dos procesos 
-(hilos) en la función \texttt{ejecutar()} de la clase \texttt{Generador.java}.
-Un hilo  es para vigilar el teclado y permitir la interrupción del programa. El otro para hacer la cuenta regresiva y continuar con el proceso. 
-El hilo que vigila el teclado se ejecuta de manera concurrente con el hilo principal, por lo que se puede interrumpir el programa en cualquier momento.
+Como se observa en la figura \ref{code:pool_hilos}, el sistema crea un pool fijo de cuatro hilos para administrar las tareas concurrentes. Cada archivo PDF es tratado como una tarea independiente y enviado al pool de ejecución mediante el método \texttt{submit()}.
+
+Cada tarea es representada mediante la clase \texttt{ProcesadorPDFTask}, la cual implementa la interfaz \texttt{Callable<Alumno>} para permitir el procesamiento concurrente y el retorno de resultados.
+
+\vspace{-0.5cm}
+\begin{figure}[H]
+    \centering
+    \caption{Clase ProcesadorPDFTask}
+    \label{code:procesador_task}
+    \begin{lstlisting}[language=Java]
+public class ProcesadorPDFTask
+        implements Callable<Alumno> {
+
+    private final Path pdf;
+
+    public ProcesadorPDFTask(Path pdf) {
+        this.pdf = pdf;
+    }
+
+    @Override
+    public Alumno call() throws Exception {
+
+        System.out.println(
+            "[" + Thread.currentThread().getName()
+            + "] Procesando: "
+            + pdf.getFileName());
+
+        try (PDDocument doc =
+                 PDDocument.load(pdf.toFile())) {
+
+            PDFHorarioStripper stripper =
+                new PDFHorarioStripper();
+
+            stripper.getText(doc);
+
+            return new Alumno(
+                stripper.getNombreAlumno(),
+                stripper.getHorario()
+            );
+        }
+    }
+}
+    \end{lstlisting}
+\end{figure}
+
+La clase \texttt{ProcesadorPDFTask} permite encapsular el procesamiento de cada archivo PDF dentro de una tarea concurrente independiente. Cada hilo del pool ejecuta distintas tareas simultáneamente, reutilizando recursos de ejecución de manera eficiente.
+
+Asimismo, el sistema implementa tolerancia a fallos durante la ejecución concurrente. Si un archivo PDF presenta errores de lectura o corrupción, únicamente la tarea asociada falla, mientras las demás continúan ejecutándose normalmente.
+
+\vspace{-0.5cm}
+\begin{figure}[H]
+    \centering
+    \caption{Ejecución concurrente del sistema}
+    \label{code:salida_hilos}
+    \begin{verbatim}
+[MAIN] Enviando tarea: HorarioAlfredo.pdf
+[MAIN] Enviando tarea: HorarioAri.pdf
+
+[pool-1-thread-1] Procesando: HorarioAlfredo.pdf
+[pool-1-thread-2] Procesando: HorarioAri.pdf
+    \end{verbatim}
+\end{figure}
+
+La implementación concurrente permitió mejorar el aprovechamiento de recursos del sistema y reducir el tiempo de procesamiento al ejecutar múltiples tareas de manera simultánea.
