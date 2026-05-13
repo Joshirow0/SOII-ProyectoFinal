@@ -1,47 +1,171 @@
-El sistema actual basa su ejecución en un modelo de planificación no expropiativo,
-es decir, que los procesos no pueden ser interrumpidos, regido por el algoritmo de prioridad \textbf{FCFS (First-Come, First-Served)}.
-En este enfoque teórico, los procesos son atendidos estrictamente en el orden de llegada a la cola de ejecución,
-sin importar su tamaño, complejidad o tiempo estimado
-de ráfaga de CPU (\textit{burst time}).
+El sistema implementa tres algoritmos de planificación de CPU seleccionables de forma
+interactiva al inicio de cada ejecución. Todos operan sobre la misma unidad de trabajo:
+un archivo PDF de horario generado por el portal de Autoservicios BUAP. La llegada
+de procesos equivale al momento en que el \texttt{DirectoryStream} entrega las rutas
+al programa; a partir de ese instante, cada algoritmo decide el orden y la forma en
+que la CPU atiende cada archivo.
 
-\subsubsection*{Implementación en el código}
-En el contexto de este proyecto, la "llegada de procesos" equivale a la lectura y carga de los archivos
-PDF desde el directorio fuente en el sistema operativo. Esta lógica de despacho se encuentra
-implementada en la clase \texttt{Generador.java}, específicamente dentro del método
-\texttt{cargarAlumnosDesdePDF()}.
+La selección se realiza mediante un menú desplegado en consola antes del contador
+de inicio, implementado en el método \texttt{elegirAlgoritmo()} de la clase
+\texttt{Generador}:
 
-\vspace{-0.3cm}
 \begin{figure}[H]
     \centering
-    \caption{Implementación de la política FCFS mediante \texttt{DirectoryStream}}
-    \label{code:fcfs_actual}
+    \caption{Menú interactivo de selección de algoritmo}
+    \label{code:menu-algoritmo}
     \begin{lstlisting}[language=Java]
-try (DirectoryStream<Path> stream = Files.newDirectoryStream(CARPETA_PDF, "*.pdf")) {
-    for (Path pdf : stream) {
-        System.out.println("Procesando: " + pdf.getFileName());
-        
-        try {
-            // El hilo toma el archivo y usa la CPU hasta terminar (Non-preemptive)
-            try (PDDocument doc = PDDocument.load(pdf.toFile())) {
-                PDFHorarioStripper stripper = new PDFHorarioStripper();
-                stripper.getText(doc);
-                alumnos.add(new Alumno(stripper.getNombreAlumno(), stripper.getHorario()));
-            }
-        } catch (IOException e) {
-            // Manejo de interrupciones de software...
-        }
-    }
+private AlgoritmoScheduler elegirAlgoritmo() {
+    System.out.println("Algoritmo de planificacion de CPU");
+    System.out.println("  [1] FCFS  - First Come, First Served");
+    System.out.println("  [2] SJF   - Shortest Job First");
+    System.out.println("  [3] RR    - Round Robin (quantum=150ms)");
+    System.out.print("Selecciona una opcion [1-3]: ");
+
+    Scanner scanner = new Scanner(System.in);
+    String opcion = scanner.nextLine().trim();
+
+    return switch (opcion) {
+        case "1" -> new FCFSScheduler();
+        case "2" -> new SJFScheduler();
+        case "3" -> new RoundRobinScheduler();
+        default  -> null;
+    };
 }
     \end{lstlisting}
 \end{figure}
 
-El uso nativo de FCFS en esta etapa del sistema se presenta por la naturaleza secuencial de la interfaz
-\texttt{DirectoryStream} provista por Java. El Sistema Operativo, a través de su sistema de archivos,
-actúa como el despachador, entregando las rutas de los documentos a la cola del programa
-exactamente en el orden en que son recuperadas de la tabla de descriptores del directorio.
+Los tres schedulers implementan la interfaz \texttt{AlgoritmoScheduler}, que define
+dos métodos: \texttt{ordenar()}, que recibe la lista de PDFs en orden de llegada y
+devuelve la lista reordenada según el criterio del algoritmo; y \texttt{ejecutar()},
+que procesa los archivos y registra las métricas de cada uno.
 
-Una vez que el hilo de ejecución principal toma un documento específico e invoca a la clase \texttt{PDFHorarioStripper},
-la CPU se dedica exclusivamente a extraer el contenido de dicho archivo hasta su finalización.
-Al no existir una evaluación heurística previa (como inspeccionar el peso en bytes del archivo) ni un
-temporizador que interrumpa la ejecución mediante un \textit{quantum} de tiempo,
-el diseño asegura que el tiempo de espera de cada documento dependa exclusivamente de su posición en la cola.
+% ─────────────────────────────────────────────────────────────────
+\subsubsection{FCFS (First Come, First Served)}
+
+FCFS es un algoritmo no expropiativo que atiende los procesos estrictamente en el
+orden de llegada. En este sistema, la "llegada" equivale al orden en que el Sistema
+Operativo entrega los archivos PDF a través de \texttt{DirectoryStream}. Una vez
+que un archivo toma la CPU, la ocupa hasta finalizar su procesamiento completo.
+
+La implementación no aplica ningún reordenamiento: el método \texttt{ordenar()}
+devuelve la lista tal como fue recibida.
+
+\begin{figure}[H]
+    \centering
+    \caption{Implementación de FCFS — sin reordenamiento}
+    \label{code:fcfs-impl}
+    \begin{lstlisting}[language=Java]
+// FCFSScheduler.java
+@Override
+public List<Path> ordenar(List<Path> pdfs) {
+    // No reordena: devuelve la lista tal como llego del SO
+    return new ArrayList<>(pdfs);
+}
+
+@Override
+public List<MetricaPDF> ejecutar(List<Path> pdfs) throws Exception {
+    for (Path pdf : pdfs) {
+        MetricaPDF metrica = new MetricaPDF(
+            pdf.getFileName().toString(), tiempoInicioCola);
+        metrica.registrarInicio();
+
+        // El hilo ocupa la CPU hasta terminar (Non-preemptive)
+        ProcesadorPDFTask tarea = new ProcesadorPDFTask(pdf);
+        tarea.call();
+
+        metrica.registrarFin();
+        metricas.add(metrica);
+    }
+    return metricas;
+}
+    \end{lstlisting}
+\end{figure}
+
+El uso nativo de FCFS se presenta por la naturaleza secuencial de \texttt{DirectoryStream}.
+El Sistema Operativo actúa como despachador, entregando las rutas en el orden en que
+son recuperadas de la tabla de descriptores del directorio. Al no existir ninguna
+evaluación heurística previa ni un temporizador que interrumpa la ejecución, el
+tiempo de espera de cada archivo depende exclusivamente de su posición en la cola.
+
+% ─────────────────────────────────────────────────────────────────
+\subsubsection{SJF (Shortest Job First)}
+
+SJF es un algoritmo no expropiativo que prioriza los procesos con menor burst time
+estimado. En este sistema, el tamaño del archivo en bytes se utiliza como estimador:
+un PDF más pequeño contiene menos contenido y se asume que requiere menor tiempo
+de procesamiento por parte de la CPU.
+
+Antes de ejecutar, el método \texttt{ordenar()} inspecciona el tamaño de cada
+archivo con \texttt{Files.size()} y reordena la lista de menor a mayor:
+
+\begin{figure}[H]
+    \centering
+    \caption{Implementación de SJF — reordenamiento por tamaño}
+    \label{code:sjf-impl}
+    \begin{lstlisting}[language=Java]
+// SJFScheduler.java
+@Override
+public List<Path> ordenar(List<Path> pdfs) throws Exception {
+    List<Path> ordenados = new ArrayList<>(pdfs);
+
+    ordenados.sort(Comparator.comparingLong(pdf -> {
+        try {
+            return Files.size(pdf); // menor tamano = menor burst time estimado
+        } catch (Exception e) {
+            return Long.MAX_VALUE;  // al final si no se puede leer
+        }
+    }));
+
+    return ordenados;
+}
+    \end{lstlisting}
+\end{figure}
+
+Si dos archivos tienen el mismo tamaño, el orden de llegada original actúa como
+desempate, preservando la equidad entre procesos equivalentes. Una vez reordenada
+la cola, la ejecución es idéntica a FCFS: cada archivo ocupa la CPU sin
+interrupciones hasta completarse.
+
+% ─────────────────────────────────────────────────────────────────
+\subsubsection{Round Robin (RR)}
+
+Round Robin es un algoritmo expropiativo que asigna a cada proceso un quantum de
+tiempo fijo —en este sistema, 150\,ms. Si un archivo no termina dentro del quantum,
+el hilo que lo procesa es interrumpido, el archivo se reencola al final de la cola
+circular, y se retoma en la siguiente vuelta. Este ciclo continúa hasta que todos
+los archivos completan su procesamiento.
+
+La implementación utiliza un \texttt{Future} con \texttt{timeout} para simular la
+expropiación:
+
+\begin{figure}[H]
+    \centering
+    \caption{Implementación de Round Robin — quantum de tiempo con Future}
+    \label{code:rr-impl}
+    \begin{lstlisting}[language=Java]
+// RoundRobinScheduler.java
+private static final long QUANTUM_MS = 150;
+
+Future<?> future = executor.submit(() -> {
+    ProcesadorPDFTask tarea = new ProcesadorPDFTask(pdf);
+    tarea.call();
+});
+
+try {
+    future.get(QUANTUM_MS, TimeUnit.MILLISECONDS);
+    // Termino dentro del quantum: registrar fin
+    metrica.registrarFin();
+
+} catch (TimeoutException e) {
+    // Excedio el quantum: cancelar y reencolar
+    future.cancel(true);
+    cola.offer(pdf); // regresa al final de la cola circular
+}
+    \end{lstlisting}
+\end{figure}
+
+La cola circular se implementa con un \texttt{LinkedList} operado como
+\texttt{Queue}. En cada vuelta se procesan todos los archivos pendientes;
+los que exceden el quantum son reinsertados al final con \texttt{cola.offer()}.
+El proceso se repite hasta que la cola queda vacía. Para evitar bucles infinitos
+en caso de fallos persistentes, se establece un límite de 100 vueltas.

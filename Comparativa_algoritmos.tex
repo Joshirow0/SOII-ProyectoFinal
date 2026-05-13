@@ -1,0 +1,154 @@
+Las siguientes subsecciones documentan el comportamiento empírico de cada algoritmo
+sobre un conjunto de cuatro archivos PDF de horarios generados por el portal de
+Autoservicios BUAP. Los archivos procesados fueron:
+
+\begin{itemize}
+    \item \texttt{OmarHorarioChido.pdf} — 521{,}508 bytes
+    \item \texttt{PauHorario.pdf} — 446{,}908 bytes
+    \item \texttt{HorarioAlfredo.pdf} — 548{,}868 bytes
+    \item \texttt{HorarioAri.pdf} — 453{,}448 bytes
+\end{itemize}
+
+Todos los archivos corresponden a horarios de una sola página, lo que produce
+burst times pequeños y homogéneos —condición que influye directamente en el
+comportamiento de Round Robin, como se analiza más adelante.
+
+% ─────────────────────────────────────────────────────────────────
+\subsubsection{FCFS (First Come, First Served)}
+
+En FCFS los archivos se despachan en el orden exacto en que el sistema operativo
+los entrega a través de \texttt{DirectoryStream}, sin ningún reordenamiento previo.
+El proceso que llega primero ocupa la CPU hasta terminar; solo entonces el siguiente
+puede iniciar.
+
+\begin{table}[H]
+\centering
+\caption{Métricas de planificación — FCFS}
+\label{tab:fcfs-metricas}
+\begin{tabular}{|l|r|r|r|r|r|}
+\hline
+\textbf{Archivo} & \textbf{Llegada} & \textbf{Inicio} & \textbf{Fin} & \textbf{Espera} & \textbf{Turnaround} \\
+\hline
+OmarHorarioChido.pdf &   0 ms &   0 ms & 243 ms &   0 ms & 243 ms \\
+PauHorario.pdf       &   0 ms & 244 ms & 270 ms & 244 ms & 270 ms \\
+HorarioAlfredo.pdf   &   0 ms & 270 ms & 324 ms & 270 ms & 324 ms \\
+HorarioAri.pdf       &   0 ms & 324 ms & 409 ms & 324 ms & 409 ms \\
+\hline
+\multicolumn{4}{|r|}{\textbf{Promedio}} & \textbf{209 ms} & \textbf{311 ms} \\
+\hline
+\end{tabular}
+\end{table}
+
+El primer archivo en llegar, \texttt{OmarHorarioChido.pdf}, no espera en absoluto
+(espera = 0\,ms) y ocupa la CPU durante 243\,ms. Los tres archivos restantes
+acumulan la espera del anterior, de modo que \texttt{HorarioAri.pdf} debe aguardar
+324\,ms antes de ser atendido. Esta acumulación es la principal desventaja teórica
+de FCFS: si el primer proceso en llegar es el más costoso, penaliza a todos los demás.
+Sin embargo, en este caso los burst times son cortos y homogéneos, por lo que el
+turnaround promedio de 311\,ms resulta el más bajo de los tres algoritmos evaluados.
+
+% ─────────────────────────────────────────────────────────────────
+\subsubsection{SJF (Shortest Job First)}
+
+SJF reordena la cola antes de ejecutar, priorizando los archivos de menor tamaño
+en bytes. El tamaño del archivo se utiliza como estimador del burst time: un PDF
+más pequeño contiene menos contenido y se procesa más rápido.
+
+El orden de llegada original era: \texttt{OmarHorarioChido.pdf},
+\texttt{PauHorario.pdf}, \texttt{HorarioAlfredo.pdf}, \texttt{HorarioAri.pdf}.
+Tras inspeccionar los tamaños, el scheduler reordenó la cola de la siguiente manera:
+
+\begin{enumerate}
+    \item \texttt{PauHorario.pdf} — 446{,}908 bytes
+    \item \texttt{HorarioAri.pdf} — 453{,}448 bytes
+    \item \texttt{OmarHorarioChido.pdf} — 521{,}508 bytes
+    \item \texttt{HorarioAlfredo.pdf} — 548{,}868 bytes
+\end{enumerate}
+
+\begin{table}[H]
+\centering
+\caption{Métricas de planificación — SJF}
+\label{tab:sjf-metricas}
+\begin{tabular}{|l|r|r|r|r|r|}
+\hline
+\textbf{Archivo} & \textbf{Llegada} & \textbf{Inicio} & \textbf{Fin} & \textbf{Espera} & \textbf{Turnaround} \\
+\hline
+PauHorario.pdf       &   0 ms &   0 ms & 173 ms &   0 ms & 173 ms \\
+HorarioAri.pdf       &   0 ms & 173 ms & 227 ms & 173 ms & 227 ms \\
+OmarHorarioChido.pdf &   0 ms & 227 ms & 432 ms & 227 ms & 432 ms \\
+HorarioAlfredo.pdf   &   0 ms & 433 ms & 853 ms & 433 ms & 853 ms \\
+\hline
+\multicolumn{4}{|r|}{\textbf{Promedio}} & \textbf{208 ms} & \textbf{421 ms} \\
+\hline
+\end{tabular}
+\end{table}
+
+La espera promedio de SJF (208\,ms) es marginalmente menor que la de FCFS (209\,ms),
+lo que confirma el principio teórico: atender primero los trabajos más cortos reduce
+la espera acumulada de los procesos que llegan después. Sin embargo, el turnaround
+promedio (421\,ms) es considerablemente mayor que el de FCFS, porque
+\texttt{HorarioAlfredo.pdf} —el más pesado— terminó en 853\,ms, elevando el promedio.
+Esto ilustra que SJF favorece los procesos cortos a costa de los más largos,
+que en casos extremos pueden sufrir inanición.
+
+% ─────────────────────────────────────────────────────────────────
+\subsubsection{RR (Round Robin, quantum = 150 ms)}
+
+Round Robin asigna a cada proceso un quantum de tiempo de 150\,ms. Si un archivo
+no termina dentro de ese límite, el hilo es interrumpido, el archivo se reencola
+al final de la cola circular y se retoma en la siguiente vuelta.
+
+Durante la primera vuelta, \texttt{OmarHorarioChido.pdf} y \texttt{PauHorario.pdf}
+excedieron el quantum y fueron reencolados. \texttt{HorarioAlfredo.pdf} y
+\texttt{HorarioAri.pdf} terminaron dentro del límite. En la segunda vuelta,
+ambos archivos pendientes completaron su procesamiento.
+
+\begin{table}[H]
+\centering
+\caption{Métricas de planificación — Round Robin (quantum = 150 ms)}
+\label{tab:rr-metricas}
+\begin{tabular}{|l|r|r|r|r|r|}
+\hline
+\textbf{Archivo} & \textbf{Llegada} & \textbf{Inicio} & \textbf{Fin} & \textbf{Espera} & \textbf{Turnaround} \\
+\hline
+OmarHorarioChido.pdf &   0 ms &   9 ms & 464 ms &   9 ms & 464 ms \\
+PauHorario.pdf       &   0 ms & 161 ms & 477 ms & 161 ms & 477 ms \\
+HorarioAlfredo.pdf   &   0 ms & 311 ms & 419 ms & 311 ms & 419 ms \\
+HorarioAri.pdf       &   0 ms & 419 ms & 443 ms & 419 ms & 443 ms \\
+\hline
+\multicolumn{4}{|r|}{\textbf{Promedio}} & \textbf{225 ms} & \textbf{450 ms} \\
+\hline
+\end{tabular}
+\end{table}
+
+Round Robin produjo la espera promedio más alta (225\,ms) y el turnaround promedio
+más alto (450\,ms) de los tres algoritmos. Esto se explica por la naturaleza de
+los archivos: los PDFs de horarios BUAP son pequeños y homogéneos, con burst times
+que rondan los 100--300\,ms. En este escenario, el overhead de interrumpir y
+reencolar procesos supera el beneficio de compartir la CPU, y RR converge al
+comportamiento de FCFS con penalización adicional por el cambio de contexto simulado.
+
+% ─────────────────────────────────────────────────────────────────
+\subsubsection*{Comparativa general}
+
+\begin{table}[H]
+\centering
+\caption{Resumen comparativo de los tres algoritmos}
+\label{tab:comparativa-algoritmos}
+\begin{tabular}{|l|r|r|}
+\hline
+\textbf{Algoritmo} & \textbf{Espera promedio} & \textbf{Turnaround promedio} \\
+\hline
+FCFS                        & 209 ms & 311 ms \\
+SJF                         & 208 ms & 421 ms \\
+RR (quantum = 150 ms)       & 225 ms & 450 ms \\
+\hline
+\end{tabular}
+\end{table}
+
+Para cargas de trabajo homogéneas y de burst time corto —como los horarios de una
+página generados por Autoservicios BUAP— FCFS resulta el algoritmo más eficiente
+en términos de turnaround. SJF ofrece la menor espera promedio teórica pero penaliza
+a los procesos más pesados. Round Robin, diseñado para cargas heterogéneas y sistemas
+interactivos, introduce overhead innecesario cuando los procesos son uniformes,
+resultando en el peor desempeño para este caso de uso particular.
