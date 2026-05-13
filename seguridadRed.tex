@@ -153,3 +153,79 @@ En resumen, la arquitectura del proyecto original garantiza que el archivo de sa
 solo se genera cuando \textit{todos} los datos han sido validados y procesados correctamente.
 No existe un estado intermedio en el que el archivo pueda quedar parcialmente escrito ni
 un mecanismo externo que pueda inyectar contenido corrupto durante la escritura.
+
+\paragraph{Autenticación básica de acceso.}
+Como medida de control de acceso, el sistema implementa un mecanismo de autenticación por
+usuario y contraseña antes de iniciar cualquier procesamiento. Esto impide que usuarios no
+autorizados ejecuten el programa y accedan a la información de los horarios.
+
+La autenticación se realiza mediante el método \texttt{autenticar()} en la clase
+\texttt{Generador}, que es lo primero que se invoca al ejecutar el sistema:
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Método de autenticación con usuario y contraseña}
+    \label{code:secure-auth}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+private boolean autenticar() {
+    Console consola = System.console();
+    if (consola == null) {
+        System.err.println("[!] No se puede acceder a la consola.");
+        return false;
+    }
+
+    String usuario = consola.readLine("Usuario: ");
+    if (usuario == null || !usuario.equals(USUARIO_CORRECTO)) {
+        System.err.println("[!] Usuario incorrecto. Acceso denegado.");
+        return false;
+    }
+
+    char[] password = consola.readPassword("Contrasena: ");
+    if (password == null || !new String(password).equals(PASSWORD_CORRECTA)) {
+        System.err.println("[!] Contrasena incorrecta. Acceso denegado.");
+        Arrays.fill(password, '0');
+        return false;
+    }
+
+    Arrays.fill(password, '0');
+    System.out.println("[DEBUG] Autenticacion exitosa. Bienvenido, " + usuario);
+    return true;
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+El diseño del método incorpora tres decisiones de seguridad relevantes. Primero, se utiliza
+\texttt{Console.readPassword()} para leer la contraseña, lo que evita que esta se muestre
+en pantalla mientras el usuario la escribe ---a diferencia de un \texttt{Scanner} estándar,
+que sí la mostraría. Segundo, si el usuario es incorrecto, el sistema deniega el acceso
+inmediatamente sin llegar a solicitar la contraseña, reduciendo la superficie de ataque.
+Tercero, una vez verificada, la contraseña se sobreescribe en memoria con
+\texttt{Arrays.fill(password, '0')}, eliminando el valor sensible del heap antes de que
+el recolector de basura pueda exponerlo.
+
+\begin{table}[H]
+\centering
+\caption{Comparación de mecanismos de lectura de contraseña}
+\label{tab:secure-auth-comparacion}
+\begin{tabular}{|p{4cm}|p{4.5cm}|p{4cm}|}
+\hline
+\textbf{Aspecto} & \textbf{\texttt{Console.readPassword()}} & \textbf{\texttt{Scanner}} \\
+\hline
+Visibilidad en pantalla & No muestra caracteres & Muestra la contraseña \\
+\hline
+Tipo de retorno & \texttt{char[]} (borrable) & \texttt{String} (inmutable) \\
+\hline
+Limpieza de memoria & Posible con \texttt{Arrays.fill} & Imposible \\
+\hline
+Adecuado para producción & Sí & No \\
+\hline
+\end{tabular}
+\end{table}
+
+El flujo completo de \texttt{ejecutar()} queda así protegido: si la autenticación falla,
+el método retorna inmediatamente y ningún PDF es procesado ni ningún archivo es escrito,
+garantizando que el acceso a los datos de los alumnos esté siempre condicionado a una
+identidad verificada.

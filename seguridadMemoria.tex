@@ -159,3 +159,116 @@ proceso para evitar generar un reporte con información incompleta o potencialme
 Este enfoque prioriza la integridad de los datos sobre la tolerancia a fallos, siguiendo el principio
 de que es preferible no producir ningún resultado a producir uno que el usuario podría asumir
 como válido sin saber que está incompleto.
+
+\paragraph{Controles de seguridad implementados.}
+Además de las medidas de diseño descritas anteriormente, el proyecto incorpora un conjunto de
+validaciones explícitas distribuidas entre \texttt{ProcesadorPDFTask} y \texttt{Generador}
+que refuerzan la integridad del sistema en cada punto de entrada de datos.
+
+En la clase \texttt{ProcesadorPDFTask}, el constructor rechaza inmediatamente cualquier referencia
+nula mediante una validación de entrada estricta:
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Validación de entrada nula en el constructor}
+    \label{code:secure-null-check}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+public ProcesadorPDFTask(Path pdf) {
+    if (pdf == null) {
+        throw new IllegalArgumentException("La ruta del PDF no puede ser null");
+    }
+    this.pdf = pdf;
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+Al inicio del método \texttt{call()}, se ejecutan cinco validaciones en cadena antes de abrir
+el archivo con PDFBox. Primero se verifica que el archivo exista en disco; después, que el
+proceso tenga permisos de lectura sobre él. A continuación se aplica la protección más crítica:
+la prevención de \textit{path traversal}. Esta vulnerabilidad permite que una ruta manipulada
+como \texttt{../../etc/passwd} escape del directorio autorizado. La contramedida consiste en
+resolver la ruta real con \texttt{toRealPath()} —que elimina segmentos \texttt{../} y
+enlaces simbólicos— y verificar que el resultado comience con la ruta canónica de la carpeta
+permitida:
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Prevención de path traversal mediante ruta canónica}
+    \label{code:secure-path-traversal}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+// Resuelto una sola vez al cargar la clase
+private static final Path CARPETA_PERMITIDA =
+    Paths.get("src/main/resources/pdf/").toRealPath();
+
+// En call():
+Path rutaReal = pdf.toRealPath();
+if (!rutaReal.startsWith(CARPETA_PERMITIDA)) {
+    throw new SecurityException(
+        "Ruta fuera del directorio permitido: " + pdf);
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+Finalmente, se valida que la extensión del archivo sea \texttt{.pdf} en minúsculas y que su
+tamaño sea mayor a cero bytes, descartando archivos disfrazados o vacíos antes de intentar
+cargarlos.
+
+En la clase \texttt{Generador}, se añaden dos validaciones sobre el sistema de archivos.
+Primero, \texttt{Files.isDirectory(CARPETA\_PDF)} garantiza que la ruta configurada sea
+realmente un directorio y no un archivo ordinario con el mismo nombre. Segundo, antes de
+abrir el \texttt{BufferedWriter}, se verifica si el destino de escritura tiene permisos
+disponibles: si el archivo ya existe, se comprueba que sea escribible; si aún no existe,
+se comprueba que el directorio padre permita la creación de nuevos archivos. Ambos casos
+se resuelven con una sola condición unificada:
+
+\begin{figure}[H]
+    \centering
+    \begin{minipage}{0.9\textwidth}
+    \caption{Verificación unificada de permisos de escritura}
+    \label{code:secure-write-perms}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java, basicstyle=\scriptsize\ttfamily]
+Path destino = Files.exists(rutaSalida) ? rutaSalida : rutaSalida.getParent();
+if (destino != null && !Files.isWritable(destino)) {
+    System.err.println("[!] Sin permisos de escritura en el destino: " + destino);
+    return;
+}
+    \end{lstlisting}
+    \end{minipage}
+\end{figure}
+
+La tabla~\ref{tab:secure-validaciones} resume el conjunto completo de controles implementados
+y su ubicación en el código.
+
+\begin{table}[H]
+\centering
+\caption{Controles de seguridad sobre memoria y archivos}
+\label{tab:secure-validaciones}
+\begin{tabular}{|p{4cm}|p{4.5cm}|p{4cm}|}
+\hline
+\textbf{Validación} & \textbf{Mecanismo} & \textbf{Clase} \\
+\hline
+Entrada nula & \texttt{IllegalArgumentException} en constructor & \texttt{ProcesadorPDFTask} \\
+\hline
+Existencia del archivo & \texttt{Files.exists()} & \texttt{ProcesadorPDFTask} \\
+\hline
+Permisos de lectura & \texttt{Files.isReadable()} & \texttt{ProcesadorPDFTask} \\
+\hline
+Path traversal & \texttt{toRealPath()} + \texttt{startsWith()} & \texttt{ProcesadorPDFTask} \\
+\hline
+Extensión del archivo & \texttt{endsWith(".pdf")} & \texttt{ProcesadorPDFTask} \\
+\hline
+Archivo no vacío & \texttt{Files.size() == 0} & \texttt{ProcesadorPDFTask} \\
+\hline
+Carpeta válida & \texttt{Files.isDirectory()} & \texttt{Generador} \\
+\hline
+Permisos de escritura & \texttt{Files.isWritable()} unificado & \texttt{Generador} \\
+\hline
+\end{tabular}
+\end{table}
