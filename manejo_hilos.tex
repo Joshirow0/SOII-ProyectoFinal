@@ -72,11 +72,12 @@ Asimismo, el sistema implementa tolerancia a fallos durante la ejecución concur
 La implementación concurrente permitió mejorar el aprovechamiento de recursos del sistema y reducir el tiempo de procesamiento al ejecutar múltiples tareas de manera simultánea.
 
 Para garantizar un cierre ordenado del pool de hilos, se implementó un mecanismo de terminación controlada. Una vez que todas las tareas fueron enviadas y sus resultados recolectados mediante \texttt{Future.get()}, se invoca \texttt{shutdown()} para indicar que no se aceptarán nuevas tareas. Posteriormente, \texttt{awaitTermination()} espera hasta que los hilos activos finalicen su ejecución. En caso de que el tiempo de espera se agote, se invoca \texttt{shutdownNow()} para forzar la interrupción de los hilos restantes.
-\vspace{-0.5cm}
+\vspace{-0.2cm}
 \begin{figure}[H]
     \centering
     \caption{Cierre controlado del pool de hilos}
     \label{code:shutdown_pool}
+    \vspace{-0.2cm}
     \begin{lstlisting}[language=Java]
 pool.shutdown();
 try {
@@ -93,11 +94,12 @@ try {
 Adicionalmente, el sistema incorpora un hilo secundario de tipo \textit{daemon} que permite al usuario cancelar la ejecución del programa durante la cuenta regresiva inicial presionando cualquier tecla. Al ser un hilo daemon, este termina automáticamente cuando el hilo principal concluye, sin necesidad de gestión explícita.
 
 Para la detección de entrada por teclado se utilizó \texttt{Channels.newChannel(System.in)} en lugar de \texttt{System.in.read()} directamente. Esto se debe a que \texttt{System.in.read()} bloquea el hilo de forma no interrumpible, impidiendo que herramientas como Maven puedan terminarlo correctamente al finalizar el programa. El canal NIO, en cambio, lanza una \texttt{ClosedByInterruptException} al recibir una interrupción, permitiendo un cierre limpio.
-\vspace{-0.5cm}
+\vspace{-0.2cm}
 \begin{figure}[H]
     \centering
     \caption{Hilo daemon para detección de interrupción por teclado}
     \label{code:hilo_daemon}
+    \vspace{-0.2cm}
     \begin{lstlisting}[language=Java]
 Thread hiloInterrupcion = new Thread(() -> {
     try {
