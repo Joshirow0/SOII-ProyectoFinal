@@ -1,0 +1,51 @@
+La gestión de archivos dentro del sistema se divide en dos
+fases principales: la lectura de los documentos de origen
+(Entrada) y la generación del reporte final (Salida).
+
+Para la etapa de entrada, los archivos fuente se ubican
+en un directorio interno del proyecto \newline
+(\texttt{src/main/resources/pdf/}).
+Desde esta ruta, los documentos son leídos y procesados
+de acuerdo con las lógicas descritas previamente en las
+secciones \ref{sec:hilos} Manejo de hilos y 
+\ref{sec:algoritmos} Algoritmos de prioridad. 
+
+Las rutas de lectura y salida predeterminada están
+declaradas como constantes estáticas dentro de la clase
+\texttt{Generador.java}, lo que facilita el mantenimiento
+del código:
+
+\vspace{-0.2cm}
+\begin{figure}[H]
+    \centering
+    \caption{Declaración de las rutas de entrada y salida predeterminada}
+    \label{code:path_entrada_archivos}
+    \vspace{-0.2cm}
+    \begin{lstlisting}[language=Java]
+public class Generador {
+    private static final Path CARPETA_PDF =
+            Paths.get("src/main/resources/pdf/");
+            
+    private static final Path ARCHIVO_SALIDA =
+            Paths.get("horarios.txt");
+    // ...
+}
+    \end{lstlisting}
+\end{figure}
+
+Posteriormente, estas constantes son utilizadas por el método
+\texttt{cargarAlumnosDesdePDF()} para iniciar el
+procesamiento de cada documento.
+
+En cuanto a la etapa de salida, una vez que la información
+ha sido extraída exitosamente, el sistema procede a escribir
+los resultados. Aunque existe un nombre de archivo por defecto
+(\texttt{horarios.txt}), el sistema no guarda el documento
+de forma arbitraria. Para ofrecer una mejor experiencia,
+el programa delega la selección de la ruta de guardado
+a la clase \texttt{SelectorDestino.java}. Esta clase hace
+uso de la herramienta gráfica \texttt{JFileChooser} para
+abrir un cuadro de diálogo nativo del sistema operativo,
+permitiendo al usuario elegir manualmente el directorio
+de destino final, tal y como se detalló en la sección
+\ref{sec:SelectorDestino} Clase SelectorDestino.
